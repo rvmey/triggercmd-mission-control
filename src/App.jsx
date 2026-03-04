@@ -236,6 +236,35 @@ export default function App() {
     }
   }, []);
 
+  // auto-connect with saved token
+  useEffect(() => {
+    const saved = localStorage.getItem("tc-token");
+    if (saved) {
+      setTokenInput(saved);
+      autoConnect(saved);
+    }
+  }, []);
+
+  const autoConnect = async (tok) => {
+    setPhase("loading");
+    try {
+      const cmds = await fetchCommands(tok);
+      const groups = {};
+      cmds.forEach((c) => {
+        const name = c.computer?.name || "Unknown";
+        (groups[name] = groups[name] || []).push(c);
+      });
+      setToken(tok);
+      setAllCmds(cmds);
+      setComputers(groups);
+      setPhase("dashboard");
+      setLog((l) => [{ time: timestamp(), msg: `Connected. ${Object.keys(groups).length} computers, ${cmds.length} commands.`, type: "ok" }, ...l].slice(0, 60));
+    } catch {
+      localStorage.removeItem("tc-token");
+      setPhase("setup");
+    }
+  };
+
   // clock
   useEffect(() => {
     const tick = () => {
@@ -269,6 +298,7 @@ export default function App() {
         (groups[name] = groups[name] || []).push(c);
       });
       setToken(tok);
+      localStorage.setItem("tc-token", tok);
       setAllCmds(cmds);
       setComputers(groups);
       setPhase("dashboard");
@@ -334,7 +364,7 @@ export default function App() {
             <span style={{ color: "var(--border)", margin: "0 10px" }}>|</span>
             <span>{clock}</span>
             {phase === "dashboard" && (
-              <button className="disconnect-btn" onClick={() => { setPhase("setup"); setToken(""); setAllCmds([]); setComputers({}); setSelected(null); }}>
+              <button className="disconnect-btn" onClick={() => { localStorage.removeItem("tc-token"); setPhase("setup"); setToken(""); setAllCmds([]); setComputers({}); setSelected(null); }}>
                 DISCONNECT
               </button>
             )}
