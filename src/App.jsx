@@ -135,7 +135,9 @@ const CSS = `
 .tc-grid { display:grid; grid-template-columns:220px 1fr; gap:18px; }
 
 /* sidebar */
-.tc-sidebar { display:flex; flex-direction:column; gap:6px; }
+.tc-sidebar { display:flex; flex-direction:column; gap:6px; max-height:calc(100vh - 260px); overflow-y:auto; }
+.tc-sidebar::-webkit-scrollbar { width:4px; }
+.tc-sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 .sidebar-lbl { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); padding:0 4px; margin-bottom:4px; }
 .comp-btn { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:13px 14px; cursor:pointer; transition:all .2s; text-align:left; width:100%; display:flex; align-items:center; gap:10px; }
 .comp-btn:hover { border-color:var(--accent); background:rgba(0,212,255,.05); }
@@ -151,11 +153,11 @@ const CSS = `
 .search { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:var(--text); font-family:'Share Tech Mono',monospace; font-size:12px; outline:none; width:180px; transition:all .2s; }
 .search:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,212,255,.1); }
 
-.cmds-list { overflow-y:auto; padding:10px; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; max-height:calc(100vh - 260px); }
-.cmds-list::-webkit-scrollbar { width:4px; }
+.cmds-list { overflow-x:auto; overflow-y:hidden; padding:10px; display:flex; flex-direction:column; flex-wrap:wrap; gap:10px; max-height:calc(100vh - 260px); align-content:flex-start; }
+.cmds-list::-webkit-scrollbar { height:4px; }
 .cmds-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 
-.cmd-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:13px 15px; display:flex; align-items:flex-start; gap:12px; transition:all .2s; animation:tcSlide .25s ease both; }
+.cmd-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:13px 15px; display:flex; align-items:flex-start; gap:12px; transition:all .2s; animation:tcSlide .25s ease both; width:340px; flex-shrink:0; }
 @keyframes tcSlide { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
 .cmd-card:hover { border-color:rgba(0,212,255,.3); background:rgba(0,212,255,.03); }
 .cmd-card.running { border-color:var(--warn); background:rgba(255,215,0,.05); animation:tcRunning 1s ease-in-out infinite; }
@@ -174,8 +176,8 @@ const CSS = `
 .cmd-status-text.success { color:var(--accent2); }
 .cmd-status-text.error { color:var(--danger); }
 
-.params-row { display:flex; align-items:center; gap:7px; margin-top:9px; padding-top:9px; border-top:1px solid var(--border); }
-.params-input { flex:1; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:7px 11px; color:var(--text); font-family:'Share Tech Mono',monospace; font-size:12px; outline:none; transition:border-color .2s; }
+.params-row { display:flex; align-items:center; gap:7px; margin-top:9px; padding-top:9px; border-top:1px solid var(--border); flex-wrap:wrap; }
+.params-input { flex:1; min-width:0; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:7px 11px; color:var(--text); font-family:'Share Tech Mono',monospace; font-size:12px; outline:none; transition:border-color .2s; }
 .params-input:focus { border-color:var(--accent); }
 
 /* log */
@@ -464,13 +466,6 @@ export default function App() {
                                   onKeyDown={(e) => e.key === "Enter" && !state && handleRun(cmd.computer?.name, cmd.name, cmd.id, true)}
                                   disabled={!!state}
                                 />
-                                <button
-                                  className="btn btn-green"
-                                  disabled={!!state}
-                                  onClick={() => handleRun(cmd.computer?.name, cmd.name, cmd.id, true)}
-                                >
-                                  {state === "running" ? "..." : "▶ RUN"}
-                                </button>
                               </div>
                             )}
                           </div>
@@ -481,15 +476,13 @@ export default function App() {
                                 {state === "running" ? "⏳ running" : state === "success" ? "✓ sent" : "✗ error"}
                               </span>
                             )}
-                            {!hasParams && (
-                              <button
-                                className="btn btn-green"
-                                disabled={!!state}
-                                onClick={() => handleRun(cmd.computer?.name, cmd.name, cmd.id, false)}
-                              >
-                                {state === "running" ? <><span className="spinner" style={{width:12,height:12}} />...</> : "▶ RUN"}
-                              </button>
-                            )}
+                            <button
+                              className="btn btn-green"
+                              disabled={!!state}
+                              onClick={() => handleRun(cmd.computer?.name, cmd.name, cmd.id, hasParams)}
+                            >
+                              {state === "running" ? <><span className="spinner" style={{width:12,height:12}} />...</> : "▶ RUN"}
+                            </button>
                           </div>
                         </div>
                       );
