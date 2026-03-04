@@ -157,7 +157,7 @@ const CSS = `
 .cmds-list::-webkit-scrollbar { height:4px; }
 .cmds-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 
-.cmd-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:13px 15px; display:flex; align-items:flex-start; gap:12px; transition:all .2s; animation:tcSlide .25s ease both; width:340px; flex-shrink:0; }
+.cmd-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:13px 15px; display:flex; align-items:flex-start; gap:12px; transition:all .2s; animation:tcSlide .12s ease both; width:340px; flex-shrink:0; }
 @keyframes tcSlide { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
 .cmd-card:hover { border-color:rgba(0,212,255,.3); background:rgba(0,212,255,.03); }
 .cmd-card.running { border-color:var(--warn); background:rgba(255,215,0,.05); animation:tcRunning 1s ease-in-out infinite; }
@@ -476,7 +476,7 @@ export default function App() {
                         <div
                           key={cmd.id}
                           className={`cmd-card ${state || ""}`}
-                          style={{ animationDelay: `${i * 25}ms` }}
+                          style={{ animationDelay: `${i * 8}ms` }}
                         >
                           <div className="cmd-icon-box">{cmdIcon(cmd.name)}</div>
                           <div className="cmd-body">
