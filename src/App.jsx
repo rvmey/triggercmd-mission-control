@@ -3,13 +3,6 @@ import { useState, useEffect, useRef } from "react";
 // ── Helpers ────────────────────────────────────────────────────────────────
 const esc = (s) => String(s ?? "");
 
-const ICONS = ["⚡","🔧","📂","🎵","🖥️","🔊","💡","🌐","📧","🚀","🎮","🔒","📸","🖨️","♻️"];
-function cmdIcon(name) {
-  let h = 0;
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return ICONS[h % ICONS.length];
-}
-
 function timestamp() {
   return new Date().toTimeString().slice(0, 8);
 }
@@ -17,10 +10,12 @@ function timestamp() {
 // ── TRIGGERcmd API (via Vite proxy) ────────────────────────────────────────
 async function fetchCommands(token) {
   const res = await fetch("/api/command/list", {
-    headers: { "Authorization": `Bearer ${token}` },
+    headers: { "Authorization": `Bearer ${token}`, "Cache-Control": "no-cache" },
   });
   if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
-  const data = await res.json();
+  const buf = await res.arrayBuffer();
+  const text = new TextDecoder('utf-8').decode(buf);
+  const data = JSON.parse(text);
   return data.records || data;
 }
 
@@ -478,7 +473,7 @@ export default function App() {
                           className={`cmd-card ${state || ""}`}
                           style={{ animationDelay: `${i * 8}ms` }}
                         >
-                          <div className="cmd-icon-box">{cmdIcon(cmd.name)}</div>
+                          {cmd.icon && <div className="cmd-icon-box">{cmd.icon}</div>}
                           <div className="cmd-body">
                             <div className="cmd-name">{cmd.name}</div>
                             {cmd.mcpToolDescription && (
