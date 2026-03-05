@@ -1,7 +1,7 @@
 {
   "name": "triggercmd-mission-control",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -31,7 +31,11 @@
           ]
         }
       ],
-      "icon": "build/icons/icon.ico"
+      "icon": "build/icons/icon.ico",
+      "signtoolOptions": {
+        "certificateSha1": "4514D960DBB0B24571B642C38CFA439B67E7C738",
+        "signingHashAlgorithms": ["sha256"]
+      }
     },
     "mac": {
       "target": [

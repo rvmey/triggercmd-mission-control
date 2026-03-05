@@ -1,9 +1,49 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, Menu } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
+
+function buildMenu() {
+  const template = [
+    // On macOS the first menu is always the app name menu; add Edit for copy/paste support
+    ...(process.platform === 'darwin' ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    }] : []),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'TRIGGERcmd Website',
+          click: () => shell.openExternal('https://www.triggercmd.com'),
+        },
+        {
+          label: 'Get Your Token',
+          click: () => shell.openExternal('https://www.triggercmd.com/user/computer/create'),
+        },
+        ...(isDev ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -13,7 +53,7 @@ function createWindow() {
     minHeight: 600,
     title: 'TRIGGERcmd Mission Control',
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, 'preload.cjs'),
       // Allow cross-origin requests to triggercmd.com API from file://
       webSecurity: false,
       contextIsolation: true,
@@ -36,6 +76,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  buildMenu();
   createWindow();
 
   app.on('activate', () => {

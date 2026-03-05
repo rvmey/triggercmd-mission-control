@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import iconUrl from "./assets/icon.png";
+import { version } from "../package.json";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const esc = (s) => String(s ?? "");
@@ -8,8 +10,10 @@ function timestamp() {
 }
 
 // ── TRIGGERcmd API ────────────────────────────────────────────────────────
-// In Electron (file:// origin) use the full URL; in the browser Vite proxies /api
-const API_BASE = window.electronEnv?.isElectron ? 'https://www.triggercmd.com' : '';
+// Use full URL when running in Electron (file:// protocol); Vite proxy handles /api in the browser
+const API_BASE = (window.electronEnv?.isElectron || window.location.protocol === 'file:')
+  ? 'https://www.triggercmd.com'
+  : '';
 
 async function fetchCommands(token) {
   const res = await fetch(`${API_BASE}/api/command/list`, {
@@ -354,10 +358,10 @@ export default function App() {
         {/* Header */}
         <div className="tc-header">
           <div className="tc-logo">
-            <div className="tc-logo-icon"><img src="/icon.png" alt="TriggerCMD" style={{ width: 48, height: 48, objectFit: 'contain' }} /></div>
+            <div className="tc-logo-icon"><img src={iconUrl} alt="TriggerCMD" style={{ width: 48, height: 48, objectFit: 'contain' }} /></div>
             <div>
               <h1>TRIGGERCMD</h1>
-              <span>MISSION CONTROL // v2.0</span>
+              <span>MISSION CONTROL // v{version}</span>
             </div>
           </div>
           <div className="tc-status">
@@ -376,7 +380,7 @@ export default function App() {
         {/* Setup */}
         {(phase === "setup" || phase === "loading") && (
           <div className="tc-setup">
-            <h2><img src="/icon.png" alt="" style={{ width: 24, height: 24, objectFit: 'contain', verticalAlign: 'middle', marginRight: 8 }} />INITIALIZE CONNECTION</h2>
+            <h2><img src={iconUrl} alt="" style={{ width: 24, height: 24, objectFit: 'contain', verticalAlign: 'middle', marginRight: 8 }} />INITIALIZE CONNECTION</h2>
             <p>
               Enter your TRIGGERcmd token to connect.<br />
               Get yours at <a href="https://www.triggercmd.com" target="_blank" rel="noreferrer">triggercmd.com</a> → Profile → Token.
