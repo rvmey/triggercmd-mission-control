@@ -131,8 +131,10 @@ const CSS = `
 
 /* sidebar */
 .tc-sidebar { display:flex; flex-direction:column; gap:6px; max-height:calc(100vh - 260px); overflow-y:auto; }
-.tc-sidebar::-webkit-scrollbar { width:4px; }
-.tc-sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.tc-sidebar::-webkit-scrollbar { width:12px; }
+.tc-sidebar::-webkit-scrollbar-track { background:var(--surface); border-radius:6px; }
+.tc-sidebar::-webkit-scrollbar-thumb { background:var(--muted); border-radius:6px; border:2px solid var(--surface); }
+.tc-sidebar::-webkit-scrollbar-thumb:hover { background:var(--accent); }
 .sidebar-lbl { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); padding:0 4px; margin-bottom:4px; }
 .comp-btn { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:13px 14px; cursor:pointer; transition:all .2s; text-align:left; width:100%; display:flex; align-items:center; gap:10px; }
 .comp-btn:hover { border-color:var(--accent); background:rgba(0,212,255,.05); }
@@ -149,8 +151,10 @@ const CSS = `
 .search:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,212,255,.1); }
 
 .cmds-list { overflow-x:auto; overflow-y:hidden; padding:10px; display:flex; flex-direction:column; flex-wrap:wrap; gap:10px; max-height:calc(100vh - 260px); align-content:flex-start; }
-.cmds-list::-webkit-scrollbar { height:4px; }
-.cmds-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.cmds-list::-webkit-scrollbar { height:12px; }
+.cmds-list::-webkit-scrollbar-track { background:var(--surface); border-radius:6px; }
+.cmds-list::-webkit-scrollbar-thumb { background:var(--muted); border-radius:6px; border:2px solid var(--surface); }
+.cmds-list::-webkit-scrollbar-thumb:hover { background:var(--accent); }
 
 .cmd-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:13px 15px; display:flex; align-items:flex-start; gap:12px; transition:all .2s; animation:tcSlide .12s ease both; width:340px; flex-shrink:0; }
 @keyframes tcSlide { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
