@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/usr/bin:$PATH"
+
+echo "Installing rpm tools..."
+apt-get install -y rpm
 
 echo "Installing dependencies..."
 npm install
