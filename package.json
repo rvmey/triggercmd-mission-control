@@ -62,6 +62,12 @@
         }
       ],
       "icon": "build/icons"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "rvmey",
+      "repo": "triggercmd-mission-control",
+      "releaseType": "release"
     }
   },
   "dependencies": {

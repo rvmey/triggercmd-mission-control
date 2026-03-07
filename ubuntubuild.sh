@@ -5,4 +5,4 @@ echo "Installing dependencies..."
 npm install
 
 echo "Building Electron app..."
-npm run electron:build
+npx vite build && npx electron-builder --publish always
