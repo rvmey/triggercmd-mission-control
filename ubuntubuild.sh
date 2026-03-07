@@ -3,6 +3,7 @@ set -euo pipefail
 
 
 echo "Installing rpm tools..."
+apt-get update -y
 apt-get install -y rpm
 
 echo "Installing dependencies..."
