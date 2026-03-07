@@ -10,8 +10,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "electron:build:unsigned": "vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder"
   },
+  "description": "Desktop app for triggering your TRIGGERcmd commands",
+  "author": "VanderMey Consulting, LLC",
   "build": {
     "appId": "com.triggercmd.mission-control",
     "productName": "TRIGGERcmd Mission Control",
