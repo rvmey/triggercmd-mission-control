@@ -11,7 +11,7 @@ pipeline {
         steps {
             checkout([
                 $class: 'GitSCM',
-                branches: [[name: '/master']],
+                branches: [[name: '/main']],
                 userRemoteConfigs: [[
                     credentialsId: "jenkins",
                     url: 'git@github.com:rvmey/triggercmd-mission-control.git'
