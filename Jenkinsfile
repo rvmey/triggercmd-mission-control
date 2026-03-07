@@ -33,12 +33,6 @@ pipeline {
                 sh './ubuntubuild.sh'
             }
         }
-
-        stage('copy rpm and deb artifacts') {
-            steps {
-                sh 'cp -r ./out/make/* /mnt/nas/TriggerCMD/'
-            }
-        }
         
     }
 }
