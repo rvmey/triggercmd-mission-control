@@ -14,7 +14,10 @@
     "electron:build:unsigned": "vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder"
   },
   "description": "Desktop app for triggering your TRIGGERcmd commands",
-  "author": "VanderMey Consulting, LLC",
+  "author": {
+    "name": "VanderMey Consulting, LLC",
+    "email": "support@triggercmd.com"
+  },
   "build": {
     "appId": "com.triggercmd.mission-control",
     "productName": "TRIGGERcmd Mission Control",
@@ -56,12 +59,24 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64"]
         }
       ],
       "icon": "build/icons"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "rvmey",
+      "repo": "triggercmd-mission-control",
+      "releaseType": "release"
     }
   },
   "dependencies": {

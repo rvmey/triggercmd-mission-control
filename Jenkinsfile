@@ -11,7 +11,7 @@ pipeline {
         steps {
             checkout([
                 $class: 'GitSCM',
-                branches: [[name: '/master']],
+                branches: [[name: '*/main']],
                 userRemoteConfigs: [[
                     credentialsId: "jenkins",
                     url: 'git@github.com:rvmey/triggercmd-mission-control.git'
@@ -31,12 +31,6 @@ pipeline {
 
             steps {
                 sh './ubuntubuild.sh'
-            }
-        }
-
-        stage('copy rpm and deb artifacts') {
-            steps {
-                sh 'cp -r ./out/make/* /mnt/nas/TriggerCMD/'
             }
         }
         
