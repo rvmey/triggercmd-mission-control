@@ -332,7 +332,7 @@ export default function App() {
   // AI Chat
   const [activeTab, setActiveTab] = useState("dashboard");
   const [aiConfig, setAiConfig] = useState(null);
-  const [aiDraft, setAiDraft] = useState({ provider: "openai", apiKey: "", model: "gpt-4o", baseUrl: "http://localhost:11434" });
+  const [aiDraft, setAiDraft] = useState({ provider: "openai", apiKey: "", model: "gpt-5.4", baseUrl: "http://localhost:11434" });
   const [showAiSetup, setShowAiSetup] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatInput, setChatInput] = useState("");
@@ -401,7 +401,7 @@ export default function App() {
       const envOpenAI = window.electronEnv?.openaiApiKey;
       const envAnthropic = window.electronEnv?.anthropicApiKey;
       if (envOpenAI) {
-        const cfg = { provider: "openai", apiKey: envOpenAI, model: "gpt-4o" };
+        const cfg = { provider: "openai", apiKey: envOpenAI, model: "gpt-5.4" };
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       } else if (envAnthropic) {
@@ -901,11 +901,11 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-4o", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b" };
+                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b" };
                       setAiDraft(d => ({ ...d, provider: p, model: m[p] }));
                       setOllamaStatus("");
                     }}>
-                      <option value="openai">OpenAI (GPT-4o, etc.)</option>
+                      <option value="openai">OpenAI (gpt-5.4, etc.)</option>
                       <option value="anthropic">Anthropic (Claude)</option>
                       <option value="ollama">Ollama — Local Model</option>
                     </select>
@@ -926,7 +926,7 @@ export default function App() {
                   )}
                   <div className="ai-field">
                     <label>// MODEL</label>
-                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : "gpt-4o"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
+                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
                   </div>
                   {aiDraft.provider === "ollama" && (
                     <div style={{marginBottom:8}}>
