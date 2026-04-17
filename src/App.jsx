@@ -891,7 +891,7 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-4o", anthropic: "claude-3-5-sonnet-20241022", ollama: "llama3.2" };
+                      const m = { openai: "gpt-4o", anthropic: "claude-3-5-sonnet-20241022", ollama: "gpt-oss:20b" };
                       setAiDraft(d => ({ ...d, provider: p, model: m[p] }));
                       setOllamaStatus("");
                     }}>
