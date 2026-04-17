@@ -405,7 +405,7 @@ export default function App() {
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       } else if (envAnthropic) {
-        const cfg = { provider: "anthropic", apiKey: envAnthropic, model: "claude-3-5-sonnet-20241022" };
+        const cfg = { provider: "anthropic", apiKey: envAnthropic, model: "claude-opus-4-7" };
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       }
@@ -576,7 +576,12 @@ export default function App() {
           const args = JSON.parse(tc.function.arguments || "{}");
           const label = `${tc.function.name}(${Object.entries(args).map(([k, v]) => `${k}: "${v}"`).join(", ")})`;
           setChatMsgs(prev => [...prev, { role: "tool_call", content: label }]);
-          const result = await executeTool(tc.function.name, args);
+          let result;
+          try {
+            result = await executeTool(tc.function.name, args);
+          } catch (err) {
+            result = JSON.stringify({ error: err.message });
+          }
           setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
           const tMsg = { role: "tool", tool_call_id: tc.id, content: result };
           msgs.push(tMsg);
@@ -623,7 +628,12 @@ export default function App() {
         for (const tu of toolUses) {
           const label = `${tu.name}(${Object.entries(tu.input).map(([k, v]) => `${k}: "${v}"`).join(", ")})`;
           setChatMsgs(prev => [...prev, { role: "tool_call", content: label }]);
-          const result = await executeTool(tu.name, tu.input);
+          let result;
+          try {
+            result = await executeTool(tu.name, tu.input);
+          } catch (err) {
+            result = JSON.stringify({ error: err.message });
+          }
           setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
           apiConvRef.current.push({ role: "tool", tool_call_id: tu.id, content: result });
         }
@@ -891,7 +901,7 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-4o", anthropic: "claude-3-5-sonnet-20241022", ollama: "gpt-oss:20b" };
+                      const m = { openai: "gpt-4o", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b" };
                       setAiDraft(d => ({ ...d, provider: p, model: m[p] }));
                       setOllamaStatus("");
                     }}>
@@ -916,7 +926,7 @@ export default function App() {
                   )}
                   <div className="ai-field">
                     <label>// MODEL</label>
-                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "llama3.2" : aiDraft.provider === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
+                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : "gpt-4o"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
                   </div>
                   {aiDraft.provider === "ollama" && (
                     <div style={{marginBottom:8}}>
