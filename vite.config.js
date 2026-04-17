@@ -14,7 +14,12 @@ export default defineConfig(({ command }) => ({
       '/api': {
         target: 'https://www.triggercmd.com',
         changeOrigin: true,
-      }
+      },
+      '/ollama': {
+        target: process.env.VITE_OLLAMA_URL || 'http://localhost:11434',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ollama/, ''),
+      },
     }
   }
 }))
