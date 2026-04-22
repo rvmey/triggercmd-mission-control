@@ -27,7 +27,7 @@ async function fetchCommands(token) {
 }
 
 async function triggerCommand(token, computer, command, params) {
-  const body = { computer, command };
+  const body = { computer, command, sender: "TRIGGERcmd Mission Control" };
   if (params) body.params = params;
 
   const res = await fetch(`${API_BASE}/api/run/trigger`, {
@@ -488,13 +488,25 @@ export default function App() {
 
   // ── AI Chat ──────────────────────────────────────────────────────────────
   const saveAiConfig = () => {
-    const cfg = { ...aiDraft };
+    let cfg = { ...aiDraft };
+    if (aiDraft.provider === "triggercmd") {
+      cfg = { provider: "triggercmd", apiKey: token.trim(), model: "gpt-4-tcmd" };
+    }
     setAiConfig(cfg);
     localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
     setShowAiSetup(false);
     setOllamaStatus("");
     addLog(`AI configured: ${cfg.provider} / ${cfg.model}`, "info");
   };
+
+  // Keep TRIGGERcmd AI config token in sync with the active dashboard token.
+  useEffect(() => {
+    if (!token || !aiConfig || aiConfig.provider !== "triggercmd") return;
+    if ((aiConfig.apiKey || "").trim() === token.trim()) return;
+    const next = { ...aiConfig, apiKey: token.trim() };
+    setAiConfig(next);
+    localStorage.setItem("tc-ai-config", JSON.stringify(next));
+  }, [token, aiConfig]);
 
   const executeTool = async (name, args) => {
     if (name === "list_commands") {
@@ -677,6 +689,49 @@ export default function App() {
     }
   };
 
+  // TRIGGERcmd Subscription chat loop
+  const runTriggercmdLoop = async () => {
+    // Prefer sending directly to /message; server will auto-create conversationId when omitted.
+    let conversationId = apiConvRef.current.find(m => m.conversationId)?.conversationId;
+    const chatToken = token.trim();
+    if (!chatToken) {
+      throw new Error("Missing active TRIGGERcmd token. Reconnect on Dashboard and try again.");
+    }
+
+    // Send message (continue existing conversation when we have an ID).
+    const userMsg = apiConvRef.current.filter(m => m.role === "user").slice(-1)[0]?.content || chatInput;
+    const resp = await fetch(`${API_BASE}/api/v1/chat/message`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${chatToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: userMsg,
+        ...(conversationId ? { conversationId } : {}),
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      if (resp.status === 401) {
+        throw new Error("TRIGGERcmd token rejected for chat API (401). Reconnect on Dashboard, then click Configure in AI Chat and save TRIGGERcmd again.");
+      }
+      if (resp.status === 402) {
+        throw new Error("TRIGGERcmd subscription required. Please activate your subscription, then try again.");
+      }
+      throw new Error(`TRIGGERcmd API error: ${resp.status} ${err || "Request failed"}`);
+    }
+
+    const data = await resp.json();
+    conversationId = data.conversationId || conversationId;
+
+    // Keep local history aligned with the already-added local user message; only append assistant reply.
+    const assistantContent = data.assistantMessage?.content || "No assistant response returned.";
+    apiConvRef.current.push({ role: "assistant", content: assistantContent, conversationId });
+    setChatMsgs(prev => [...prev, { role: "assistant", content: assistantContent }]);
+  };
+
   const handleSendChat = async () => {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
@@ -686,6 +741,7 @@ export default function App() {
     apiConvRef.current.push({ role: "user", content: text });
     try {
       if (aiConfig.provider === "anthropic") await runAnthropicLoop();
+      else if (aiConfig.provider === "triggercmd") await runTriggercmdLoop();
       else await runOpenAILoop();
     } catch (e) {
       setChatMsgs(prev => [...prev, { role: "assistant", content: `⚠️ ${e.message}` }]);
@@ -901,16 +957,17 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b" };
-                      setAiDraft(d => ({ ...d, provider: p, model: m[p] }));
+                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd" };
+                      setAiDraft(d => ({ ...d, provider: p, model: m[p], apiKey: p === "triggercmd" ? (token || d.apiKey) : d.apiKey }));
                       setOllamaStatus("");
                     }}>
                       <option value="openai">OpenAI (gpt-5.4, etc.)</option>
                       <option value="anthropic">Anthropic (Claude)</option>
                       <option value="ollama">Ollama — Local Model</option>
+                      <option value="triggercmd">TRIGGERcmd Subscription</option>
                     </select>
                   </div>
-                  {aiDraft.provider !== "ollama" && (
+                  {aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd" && (
                     <div className="ai-field">
                       <label>// API KEY</label>
                       <input className="tc-input" type="password" placeholder={`Your ${aiDraft.provider === "openai" ? "OpenAI" : "Anthropic"} API key...`} value={aiDraft.apiKey} onChange={e => setAiDraft(d => ({ ...d, apiKey: e.target.value }))} />
@@ -936,7 +993,13 @@ export default function App() {
                   )}
                   <div className="ai-btns">
                     {aiConfig && <button className="btn btn-ghost" onClick={() => { setShowAiSetup(false); setOllamaStatus(""); }}>CANCEL</button>}
-                    <button className="btn btn-cyan" disabled={!aiDraft.model.trim() || (aiDraft.provider !== "ollama" && !aiDraft.apiKey.trim())} onClick={saveAiConfig}>SAVE &amp; START CHATTING</button>
+                    <button
+                      className="btn btn-cyan"
+                      disabled={!aiDraft.model.trim() || ((aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd") && !aiDraft.apiKey.trim())}
+                      onClick={saveAiConfig}
+                    >
+                      SAVE &amp; START CHATTING
+                    </button>
                   </div>
                 </div>
               ) : (
