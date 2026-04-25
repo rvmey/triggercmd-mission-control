@@ -27,7 +27,7 @@ async function fetchCommands(token) {
 }
 
 async function triggerCommand(token, computer, command, params) {
-  const body = { computer, command };
+  const body = { computer, command, sender: "TRIGGERcmd Mission Control" };
   if (params) body.params = params;
 
   const res = await fetch(`${API_BASE}/api/run/trigger`, {
@@ -213,7 +213,104 @@ const CSS = `
 
 .disconnect-btn { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--muted); background:transparent; border:1px solid var(--border); border-radius:6px; padding:6px 12px; cursor:pointer; transition:all .2s; margin-left:12px; }
 .disconnect-btn:hover { border-color:var(--danger); color:var(--danger); }
+
+/* tabs */
+.tc-tabs { display:flex; gap:6px; margin-bottom:20px; }
+.tc-tab { font-family:'Orbitron',monospace; font-size:11px; letter-spacing:2px; font-weight:700; padding:10px 22px; background:var(--panel); border:1px solid var(--border); border-radius:8px 8px 0 0; color:var(--muted); cursor:pointer; transition:all .2s; }
+.tc-tab:hover { border-color:var(--accent); color:var(--accent); }
+.tc-tab.active { background:rgba(0,212,255,.08); border-color:var(--accent); color:var(--accent); box-shadow:0 -3px 12px rgba(0,212,255,.15); }
+
+/* chat */
+.chat-wrap { display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--accent); border-radius:0 12px 12px 12px; overflow:hidden; }
+.chat-hdr { padding:16px 22px; border-bottom:1px solid var(--border); background:var(--surface); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.chat-title { font-family:'Orbitron',monospace; font-size:13px; font-weight:700; color:var(--accent); letter-spacing:2px; }
+.chat-sub { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--muted); margin-top:3px; }
+.chat-msgs { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; min-height:300px; max-height:calc(100vh - 380px); }
+.chat-msgs::-webkit-scrollbar { width:8px; }
+.chat-msgs::-webkit-scrollbar-track { background:var(--surface); }
+.chat-msgs::-webkit-scrollbar-thumb { background:var(--muted); border-radius:4px; }
+.chat-msg { display:flex; flex-direction:column; gap:3px; max-width:85%; }
+.chat-msg.user { align-self:flex-end; align-items:flex-end; }
+.chat-msg.assistant { align-self:flex-start; align-items:flex-start; }
+.chat-msg.tool_call,.chat-msg.tool_result { align-self:flex-start; align-items:flex-start; max-width:95%; }
+.chat-role { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); }
+.chat-bubble { padding:10px 14px; border-radius:10px; font-size:13px; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+.chat-msg.user .chat-bubble { background:rgba(0,212,255,.1); border:1px solid rgba(0,212,255,.25); color:var(--text); border-bottom-right-radius:3px; }
+.chat-msg.assistant .chat-bubble { background:var(--surface); border:1px solid var(--border); color:var(--text); border-bottom-left-radius:3px; }
+.chat-msg.tool_call .chat-bubble { background:rgba(255,215,0,.05); border:1px solid rgba(255,215,0,.2); color:var(--warn); font-family:'Share Tech Mono',monospace; font-size:11px; border-bottom-left-radius:3px; }
+.chat-msg.tool_result .chat-bubble { background:rgba(0,255,157,.04); border:1px solid rgba(0,255,157,.15); color:var(--accent2); font-family:'Share Tech Mono',monospace; font-size:11px; border-bottom-left-radius:3px; max-height:200px; overflow-y:auto; }
+.chat-input-row { padding:12px 16px; border-top:1px solid var(--border); background:var(--surface); display:flex; gap:10px; align-items:flex-end; }
+.chat-textarea { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 14px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:13px; resize:none; outline:none; min-height:44px; max-height:120px; transition:border-color .2s; line-height:1.5; }
+.chat-textarea:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,212,255,.1); }
+.chat-thinking { display:flex; gap:4px; align-items:center; padding:4px 0; }
+.chat-dot { width:7px; height:7px; border-radius:50%; background:var(--muted); animation:tcChatDot 1.2s ease-in-out infinite; }
+.chat-dot:nth-child(2) { animation-delay:.2s; }
+.chat-dot:nth-child(3) { animation-delay:.4s; }
+@keyframes tcChatDot { 0%,80%,100%{transform:scale(.7);opacity:.4} 40%{transform:scale(1);opacity:1} }
+
+/* ai setup */
+.ai-setup-wrap { background:var(--panel); border:1px solid var(--border); border-top:2px solid var(--accent); border-radius:12px; padding:36px 40px; max-width:580px; margin:0 auto; box-shadow:0 0 20px rgba(0,212,255,.15); }
+.ai-setup-wrap h2 { font-family:'Orbitron',monospace; font-size:14px; color:var(--accent); letter-spacing:2px; margin-bottom:10px; }
+.ai-setup-wrap > p { color:var(--muted); font-size:13px; line-height:1.7; margin-bottom:28px; }
+.ai-field { margin-bottom:18px; }
+.ai-field label { display:block; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; color:var(--muted); margin-bottom:7px; }
+.ai-select { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 14px; color:var(--text); font-family:'Share Tech Mono',monospace; font-size:13px; outline:none; cursor:pointer; }
+.ai-select:focus { border-color:var(--accent); }
+.ai-hint { margin-top:6px; font-size:11px; color:var(--muted); font-family:'Share Tech Mono',monospace; }
+.ai-btns { display:flex; gap:10px; margin-top:24px; flex-wrap:wrap; }
+.pull-status { margin-top:12px; font-family:'Share Tech Mono',monospace; font-size:12px; color:var(--accent2); background:var(--surface); border:1px solid rgba(0,255,157,.2); border-radius:6px; padding:10px 14px; }
 `;
+
+// ── AI Constants ───────────────────────────────────────────────────────────
+const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission Control. You help users manage and trigger their remote commands. Use list_commands to see available commands, and run_command to execute them. Always confirm with the user before running a command unless they explicitly asked you to run one. Be concise.`;
+
+const AI_TOOLS_OPENAI = [
+  {
+    type: "function",
+    function: {
+      name: "list_commands",
+      description: "List all available TriggerCMD commands across all computers",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_command",
+      description: "Run a TriggerCMD command on a specific computer",
+      parameters: {
+        type: "object",
+        required: ["command", "computer"],
+        properties: {
+          command: { type: "string", description: "Name of the command to run" },
+          computer: { type: "string", description: "Name of the computer that owns the command" },
+          parameters: { type: "string", description: "Optional parameters to pass to the command" },
+        },
+      },
+    },
+  },
+];
+
+const AI_TOOLS_ANTHROPIC = [
+  {
+    name: "list_commands",
+    description: "List all available TriggerCMD commands across all computers",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "run_command",
+    description: "Run a TriggerCMD command on a specific computer",
+    input_schema: {
+      type: "object",
+      required: ["command", "computer"],
+      properties: {
+        command: { type: "string", description: "Name of the command to run" },
+        computer: { type: "string", description: "Name of the computer that owns the command" },
+        parameters: { type: "string", description: "Optional parameters to pass to the command" },
+      },
+    },
+  },
+];
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function App() {
@@ -231,6 +328,18 @@ export default function App() {
   const [toast, setToast] = useState({ msg: "", type: "info", vis: false });
   const [clock, setClock] = useState("");
   const toastTimer = useRef(null);
+
+  // AI Chat
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [aiConfig, setAiConfig] = useState(null);
+  const [aiDraft, setAiDraft] = useState({ provider: "openai", apiKey: "", model: "gpt-5.4", baseUrl: "http://localhost:11434" });
+  const [showAiSetup, setShowAiSetup] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState("");
+  const chatEndRef = useRef(null);
+  const apiConvRef = useRef([]);
 
   // inject CSS once
   useEffect(() => {
@@ -282,6 +391,31 @@ export default function App() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Load AI config from localStorage or env vars
+  useEffect(() => {
+    const saved = localStorage.getItem("tc-ai-config");
+    if (saved) {
+      try { setAiConfig(JSON.parse(saved)); } catch {}
+    } else {
+      const envOpenAI = window.electronEnv?.openaiApiKey;
+      const envAnthropic = window.electronEnv?.anthropicApiKey;
+      if (envOpenAI) {
+        const cfg = { provider: "openai", apiKey: envOpenAI, model: "gpt-5.4" };
+        setAiConfig(cfg);
+        localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
+      } else if (envAnthropic) {
+        const cfg = { provider: "anthropic", apiKey: envAnthropic, model: "claude-opus-4-7" };
+        setAiConfig(cfg);
+        localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
+      }
+    }
+  }, []);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMsgs]);
 
   const addLog = (msg, type = "info") =>
     setLog((l) => [{ time: timestamp(), msg, type }, ...l].slice(0, 60));
@@ -352,6 +486,270 @@ export default function App() {
       )
     : [];
 
+  // ── AI Chat ──────────────────────────────────────────────────────────────
+  const saveAiConfig = () => {
+    let cfg = { ...aiDraft };
+    if (aiDraft.provider === "triggercmd") {
+      cfg = { provider: "triggercmd", apiKey: token.trim(), model: "gpt-4-tcmd" };
+    }
+    setAiConfig(cfg);
+    localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
+    setShowAiSetup(false);
+    setOllamaStatus("");
+    addLog(`AI configured: ${cfg.provider} / ${cfg.model}`, "info");
+  };
+
+  // Keep TRIGGERcmd AI config token in sync with the active dashboard token.
+  useEffect(() => {
+    if (!token || !aiConfig || aiConfig.provider !== "triggercmd") return;
+    if ((aiConfig.apiKey || "").trim() === token.trim()) return;
+    const next = { ...aiConfig, apiKey: token.trim() };
+    setAiConfig(next);
+    localStorage.setItem("tc-ai-config", JSON.stringify(next));
+  }, [token, aiConfig]);
+
+  const executeTool = async (name, args) => {
+    if (name === "list_commands") {
+      const commands = await fetchCommands(token);
+      return JSON.stringify(commands.map(c => ({
+        name: c.name,
+        voice: c.voice,
+        computer: c.computer?.name,
+        mcpToolDescription: c.mcpToolDescription || "",
+      })), null, 2);
+    }
+    if (name === "run_command") {
+      const result = await triggerCommand(token, args.computer, args.command, args.parameters);
+      addLog(`AI triggered: ${args.command} on ${args.computer}`, "ok");
+      setExecuted(x => x + 1);
+      return JSON.stringify(result, null, 2);
+    }
+    return JSON.stringify({ error: "Unknown tool: " + name });
+  };
+
+  const toAnthropicMsgs = (msgs) => {
+    const result = [];
+    for (const msg of msgs) {
+      if (msg.role === "system") continue;
+      if (msg.role === "user") {
+        result.push({ role: "user", content: msg.content });
+      } else if (msg.role === "assistant") {
+        if (msg.tool_calls) {
+          result.push({
+            role: "assistant",
+            content: msg.tool_calls.map(tc => ({
+              type: "tool_use",
+              id: tc.id,
+              name: tc.function.name,
+              input: JSON.parse(tc.function.arguments || "{}"),
+            })),
+          });
+        } else {
+          result.push({ role: "assistant", content: msg.content || "" });
+        }
+      } else if (msg.role === "tool") {
+        const toolResult = { type: "tool_result", tool_use_id: msg.tool_call_id, content: msg.content };
+        const last = result[result.length - 1];
+        if (last && last.role === "user" && Array.isArray(last.content)) {
+          last.content.push(toolResult);
+        } else {
+          result.push({ role: "user", content: [toolResult] });
+        }
+      }
+    }
+    return result;
+  };
+
+  const runOpenAILoop = async () => {
+    const isElectron = window.electronEnv?.isElectron;
+    const baseUrl = aiConfig.provider === "ollama"
+      ? (isElectron ? `${aiConfig.baseUrl}/v1` : "/ollama/v1")
+      : "https://api.openai.com/v1";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${aiConfig.provider === "ollama" ? "ollama" : aiConfig.apiKey}`,
+    };
+    const msgs = [{ role: "system", content: AI_SYSTEM_PROMPT }, ...apiConvRef.current];
+    while (true) {
+      const resp = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model: aiConfig.model, messages: msgs, tools: AI_TOOLS_OPENAI, tool_choice: "auto" }),
+      });
+      if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      const choice = data.choices?.[0];
+      if (!choice) throw new Error("No response from AI");
+      if (choice.finish_reason === "tool_calls" || choice.message?.tool_calls?.length) {
+        const aMsg = choice.message;
+        msgs.push(aMsg);
+        apiConvRef.current.push(aMsg);
+        for (const tc of aMsg.tool_calls) {
+          const args = JSON.parse(tc.function.arguments || "{}");
+          const label = `${tc.function.name}(${Object.entries(args).map(([k, v]) => `${k}: "${v}"`).join(", ")})`;
+          setChatMsgs(prev => [...prev, { role: "tool_call", content: label }]);
+          let result;
+          try {
+            result = await executeTool(tc.function.name, args);
+          } catch (err) {
+            result = JSON.stringify({ error: err.message });
+          }
+          setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
+          const tMsg = { role: "tool", tool_call_id: tc.id, content: result };
+          msgs.push(tMsg);
+          apiConvRef.current.push(tMsg);
+        }
+      } else {
+        const content = choice.message?.content || "";
+        apiConvRef.current.push({ role: "assistant", content });
+        setChatMsgs(prev => [...prev, { role: "assistant", content }]);
+        break;
+      }
+    }
+  };
+
+  const runAnthropicLoop = async () => {
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": aiConfig.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    };
+    while (true) {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: aiConfig.model,
+          max_tokens: 4096,
+          system: AI_SYSTEM_PROMPT,
+          messages: toAnthropicMsgs(apiConvRef.current),
+          tools: AI_TOOLS_ANTHROPIC,
+        }),
+      });
+      if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      if (data.stop_reason === "tool_use") {
+        const toolUses = data.content.filter(b => b.type === "tool_use");
+        const aMsg = {
+          role: "assistant",
+          content: null,
+          tool_calls: toolUses.map(tu => ({ id: tu.id, type: "function", function: { name: tu.name, arguments: JSON.stringify(tu.input) } })),
+        };
+        apiConvRef.current.push(aMsg);
+        for (const tu of toolUses) {
+          const label = `${tu.name}(${Object.entries(tu.input).map(([k, v]) => `${k}: "${v}"`).join(", ")})`;
+          setChatMsgs(prev => [...prev, { role: "tool_call", content: label }]);
+          let result;
+          try {
+            result = await executeTool(tu.name, tu.input);
+          } catch (err) {
+            result = JSON.stringify({ error: err.message });
+          }
+          setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
+          apiConvRef.current.push({ role: "tool", tool_call_id: tu.id, content: result });
+        }
+      } else {
+        const content = data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
+        apiConvRef.current.push({ role: "assistant", content });
+        setChatMsgs(prev => [...prev, { role: "assistant", content }]);
+        break;
+      }
+    }
+  };
+
+  const pullOllamaModel = async () => {
+    setOllamaStatus("Connecting to Ollama...");
+    const isElectron = window.electronEnv?.isElectron;
+    const ollamaBase = isElectron ? aiDraft.baseUrl : "";
+    const pullPath = isElectron ? `${ollamaBase}/api/pull` : "/ollama/api/pull";
+    try {
+      const resp = await fetch(pullPath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: aiDraft.model, stream: true }),
+      });
+      if (!resp.ok) throw new Error(`Ollama responded with ${resp.status}`);
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of decoder.decode(value).split("\n").filter(Boolean)) {
+          try {
+            const d = JSON.parse(line);
+            if (d.total && d.completed) setOllamaStatus(`${d.status} ${Math.round((d.completed / d.total) * 100)}%`);
+            else if (d.status) setOllamaStatus(d.status);
+          } catch {}
+        }
+      }
+      setOllamaStatus("✓ Model ready!");
+    } catch (e) {
+      setOllamaStatus("✗ " + e.message);
+    }
+  };
+
+  // TRIGGERcmd Subscription chat loop
+  const runTriggercmdLoop = async () => {
+    // Prefer sending directly to /message; server will auto-create conversationId when omitted.
+    let conversationId = apiConvRef.current.find(m => m.conversationId)?.conversationId;
+    const chatToken = token.trim();
+    if (!chatToken) {
+      throw new Error("Missing active TRIGGERcmd token. Reconnect on Dashboard and try again.");
+    }
+
+    // Send message (continue existing conversation when we have an ID).
+    const userMsg = apiConvRef.current.filter(m => m.role === "user").slice(-1)[0]?.content || chatInput;
+    const resp = await fetch(`${API_BASE}/api/v1/chat/message`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${chatToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: userMsg,
+        ...(conversationId ? { conversationId } : {}),
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      if (resp.status === 401) {
+        throw new Error("TRIGGERcmd token rejected for chat API (401). Reconnect on Dashboard, then click Configure in AI Chat and save TRIGGERcmd again.");
+      }
+      if (resp.status === 402) {
+        throw new Error("TRIGGERcmd subscription required. Please activate your subscription, then try again.");
+      }
+      throw new Error(`TRIGGERcmd API error: ${resp.status} ${err || "Request failed"}`);
+    }
+
+    const data = await resp.json();
+    conversationId = data.conversationId || conversationId;
+
+    // Keep local history aligned with the already-added local user message; only append assistant reply.
+    const assistantContent = data.assistantMessage?.content || "No assistant response returned.";
+    apiConvRef.current.push({ role: "assistant", content: assistantContent, conversationId });
+    setChatMsgs(prev => [...prev, { role: "assistant", content: assistantContent }]);
+  };
+
+  const handleSendChat = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    setChatInput("");
+    setChatLoading(true);
+    setChatMsgs(prev => [...prev, { role: "user", content: text }]);
+    apiConvRef.current.push({ role: "user", content: text });
+    try {
+      if (aiConfig.provider === "anthropic") await runAnthropicLoop();
+      else if (aiConfig.provider === "triggercmd") await runTriggercmdLoop();
+      else await runOpenAILoop();
+    } catch (e) {
+      setChatMsgs(prev => [...prev, { role: "assistant", content: `⚠️ ${e.message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   return (
     <div className="tc-root">
       <div className="tc-inner">
@@ -406,6 +804,13 @@ export default function App() {
         {/* Dashboard */}
         {phase === "dashboard" && (
           <>
+            {/* Tab Nav */}
+            <div className="tc-tabs">
+              <button className={`tc-tab ${activeTab === "dashboard" ? "active" : ""}`} onClick={() => setActiveTab("dashboard")}>🖥 DASHBOARD</button>
+              <button className={`tc-tab ${activeTab === "chat" ? "active" : ""}`} onClick={() => { setActiveTab("chat"); if (!aiConfig) setShowAiSetup(true); }}>🤖 AI CHAT</button>
+            </div>
+
+            {activeTab === "dashboard" && (<>
             {/* Stats */}
             <div className="tc-stats">
               <div className="stat blue">
@@ -540,6 +945,102 @@ export default function App() {
                 ))}
               </div>
             </div>
+            </>)}
+
+            {/* AI Chat */}
+            {activeTab === "chat" && (
+              (showAiSetup || !aiConfig) ? (
+                <div className="ai-setup-wrap">
+                  <h2>🤖 CONFIGURE AI ASSISTANT</h2>
+                  <p>Connect an AI model to chat with your TriggerCMD commands. The assistant can list and run commands on your behalf.</p>
+                  <div className="ai-field">
+                    <label>// PROVIDER</label>
+                    <select className="ai-select" value={aiDraft.provider} onChange={e => {
+                      const p = e.target.value;
+                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd" };
+                      setAiDraft(d => ({ ...d, provider: p, model: m[p], apiKey: p === "triggercmd" ? (token || d.apiKey) : d.apiKey }));
+                      setOllamaStatus("");
+                    }}>
+                      <option value="openai">OpenAI (gpt-5.4, etc.)</option>
+                      <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="ollama">Ollama — Local Model</option>
+                      <option value="triggercmd">TRIGGERcmd Subscription</option>
+                    </select>
+                  </div>
+                  {aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd" && (
+                    <div className="ai-field">
+                      <label>// API KEY</label>
+                      <input className="tc-input" type="password" placeholder={`Your ${aiDraft.provider === "openai" ? "OpenAI" : "Anthropic"} API key...`} value={aiDraft.apiKey} onChange={e => setAiDraft(d => ({ ...d, apiKey: e.target.value }))} />
+                      <p className="ai-hint">Stored locally in this app only.</p>
+                    </div>
+                  )}
+                  {aiDraft.provider === "ollama" && (
+                    <div className="ai-field">
+                      <label>// OLLAMA BASE URL</label>
+                      <input className="tc-input" placeholder="http://localhost:11434" value={aiDraft.baseUrl} onChange={e => setAiDraft(d => ({ ...d, baseUrl: e.target.value }))} />
+                      <p className="ai-hint">Ollama must be running locally. <a href="https://ollama.com" target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>ollama.com</a></p>
+                    </div>
+                  )}
+                  <div className="ai-field">
+                    <label>// MODEL</label>
+                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
+                  </div>
+                  {aiDraft.provider === "ollama" && (
+                    <div style={{marginBottom:8}}>
+                      <button className="btn btn-ghost" onClick={pullOllamaModel} disabled={!aiDraft.model.trim()}>⬇ PULL MODEL</button>
+                      {ollamaStatus && <div className="pull-status">{ollamaStatus}</div>}
+                    </div>
+                  )}
+                  <div className="ai-btns">
+                    {aiConfig && <button className="btn btn-ghost" onClick={() => { setShowAiSetup(false); setOllamaStatus(""); }}>CANCEL</button>}
+                    <button
+                      className="btn btn-cyan"
+                      disabled={!aiDraft.model.trim() || ((aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd") && !aiDraft.apiKey.trim())}
+                      onClick={saveAiConfig}
+                    >
+                      SAVE &amp; START CHATTING
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="chat-wrap">
+                  <div className="chat-hdr">
+                    <div>
+                      <div className="chat-title">🤖 AI ASSISTANT</div>
+                      <div className="chat-sub">{aiConfig?.provider?.toUpperCase()} // {aiConfig?.model}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => { setChatMsgs([]); apiConvRef.current = []; }}>NEW CHAT</button>
+                      <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => { setShowAiSetup(true); setAiDraft({...aiConfig}); }}>CONFIGURE</button>
+                    </div>
+                  </div>
+                  <div className="chat-msgs">
+                    {chatMsgs.length === 0 && (
+                      <div className="empty"><div className="empty-icon">🤖</div>Ask me anything about your TriggerCMD commands.</div>
+                    )}
+                    {chatMsgs.map((m, i) => (
+                      <div key={i} className={`chat-msg ${m.role}`}>
+                        <span className="chat-role">{m.role === "user" ? "YOU" : m.role === "assistant" ? "AI" : m.role === "tool_call" ? "⚙ TOOL CALL" : "⚙ RESULT"}</span>
+                        <div className="chat-bubble">{m.content}</div>
+                      </div>
+                    ))}
+                    {chatLoading && (
+                      <div className="chat-msg assistant">
+                        <span className="chat-role">AI</span>
+                        <div className="chat-bubble"><div className="chat-thinking"><div className="chat-dot"/><div className="chat-dot"/><div className="chat-dot"/></div></div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <div className="chat-input-row">
+                    <textarea className="chat-textarea" placeholder="Ask the AI to list or run your commands..." value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }} disabled={chatLoading} rows={1} />
+                    <button className="btn btn-cyan chat-send" onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()}>
+                      {chatLoading ? <><span className="spinner" style={{width:12,height:12}} />...</> : "SEND"}
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
           </>
         )}
       </div>
