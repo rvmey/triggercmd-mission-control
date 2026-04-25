@@ -872,6 +872,20 @@ export default function App() {
     }
   };
 
+  const activityLogBlock = (
+    <div className="tc-log">
+      <div className="log-hdr">// ACTIVITY LOG</div>
+      <div className="log-body">
+        {log.map((e, i) => (
+          <div key={i} className="log-entry">
+            <span className="log-time">{e.time}</span>
+            <span className={`log-${e.type}`}>{e.msg}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="tc-root">
       <div className="tc-inner">
@@ -1070,167 +1084,161 @@ export default function App() {
             </div>
 
             {/* Activity log */}
-            <div className="tc-log">
-              <div className="log-hdr">// ACTIVITY LOG</div>
-              <div className="log-body">
-                {log.map((e, i) => (
-                  <div key={i} className="log-entry">
-                    <span className="log-time">{e.time}</span>
-                    <span className={`log-${e.type}`}>{e.msg}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {activityLogBlock}
             </>)}
 
             {/* Panels */}
             {activeTab === "panels" && (
-              <div className="tc-grid">
-                <div className="tc-sidebar">
-                  <div className="sidebar-lbl">// PANELS</div>
-                  {panelNames.length === 0 ? (
-                    <div className="empty" style={{ padding: "22px 8px", fontSize: 12 }}>
-                      No panels found
-                    </div>
-                  ) : (
-                    panelNames.map((name) => {
-                      const btns = panels[name] || [];
-                      return (
-                        <button
-                          key={name}
-                          className={`comp-btn ${selectedPanel === name ? "active" : ""}`}
-                          onClick={() => setSelectedPanel(name)}
-                        >
-                          <span style={{ fontSize: 18 }}>📋</span>
-                          <span style={{ flex: 1, minWidth: 0 }}>
-                            <div className="comp-name">{name}</div>
-                            <div className="comp-count">{btns.length} button{btns.length !== 1 ? "s" : ""}</div>
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="tc-panel">
-                  <div className="panel-hdr">
-                    <div>
-                      <div className="panel-title">{selectedPanel ? selectedPanel.toUpperCase() : "SELECT A PANEL"}</div>
-                      <div className="panel-sub">
-                        {selectedPanel
-                          ? `${selectedPanelButtons.length} button${selectedPanelButtons.length !== 1 ? "s" : ""} available`
-                          : "Choose a panel from the sidebar"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="cmds-list">
+              <>
+                <div className="tc-grid">
+                  <div className="tc-sidebar">
+                    <div className="sidebar-lbl">// PANELS</div>
                     {panelNames.length === 0 ? (
-                      <div className="empty">
-                        <div className="empty-icon">📋</div>
-                        No panels available for this account
-                      </div>
-                    ) : !selectedPanel ? (
-                      <div className="empty">
-                        <div className="empty-icon">📋</div>
-                        Select a panel to view its buttons
-                      </div>
-                    ) : selectedPanelButtons.length === 0 ? (
-                      <div className="empty">
-                        <div className="empty-icon">🧩</div>
-                        This panel has no buttons
+                      <div className="empty" style={{ padding: "22px 8px", fontSize: 12 }}>
+                        No panels found
                       </div>
                     ) : (
-                      selectedPanelButtons.map((panelButton, i) => {
-                        const state = panelStates[panelButton.id];
-                        const hasPresetParams = panelButton.paramOptions.length > 0;
-                        const showTextInput = panelButton.useRegex;
+                      panelNames.map((name) => {
+                        const btns = panels[name] || [];
                         return (
-                          <div
-                            key={panelButton.id}
-                            className={`cmd-card ${state || ""}`}
-                            style={{ animationDelay: `${i * 8}ms` }}
+                          <button
+                            key={name}
+                            className={`comp-btn ${selectedPanel === name ? "active" : ""}`}
+                            onClick={() => setSelectedPanel(name)}
                           >
-                            <div className="cmd-body">
-                              <div className="cmd-name">{panelButton.buttonName}</div>
-                              <div className="cmd-desc">Panel button trigger</div>
-                              <div className="params-row">
-                                {hasPresetParams && (
-                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", width: "100%" }}>
-                                    {panelButton.paramOptions.map((opt) => {
-                                      const selectedOpt = panelDropdownValues[panelButton.id] === opt;
-                                      const optionState = panelOptionStates[panelButton.id];
-                                      const isThisOption = optionState?.option === opt;
-                                      const isRunning = isThisOption && optionState?.state === "running";
-                                      const isSuccess = isThisOption && optionState?.state === "success";
-                                      const isError = isThisOption && optionState?.state === "error";
-                                      return (
-                                        <button
-                                          key={opt}
-                                          type="button"
-                                          className="btn btn-ghost"
-                                          style={{
-                                            padding: "6px 10px",
-                                            fontSize: 10,
-                                            borderColor: isRunning ? "var(--warn)" : isSuccess ? "var(--accent2)" : isError ? "var(--danger)" : selectedOpt ? "var(--accent2)" : "var(--border)",
-                                            color: isRunning ? "var(--warn)" : isSuccess ? "var(--accent2)" : isError ? "var(--danger)" : selectedOpt ? "var(--accent2)" : "var(--muted)",
-                                            background: isRunning ? "rgba(255,215,0,.1)" : isSuccess ? "rgba(0,255,157,.1)" : isError ? "rgba(255,51,102,.1)" : selectedOpt ? "rgba(0,255,157,.08)" : "transparent",
-                                          }}
-                                          disabled={!!state}
-                                          onClick={() => {
-                                            setPanelDropdownValues((p) => ({ ...p, [panelButton.id]: opt }));
-                                            handleRunPanel(panelButton.panelName, panelButton, opt, opt);
-                                          }}
-                                        >
-                                          {isRunning ? `${opt} ...` : isSuccess ? `${opt} ✓` : isError ? `${opt} ✗` : opt}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                                {showTextInput && (
-                                  <input
-                                    className="params-input"
-                                    placeholder={hasPresetParams ? "Or enter regex text..." : "Enter regex text..."}
-                                    value={panelParamValues[panelButton.id] || ""}
-                                    onChange={(e) =>
-                                      setPanelParamValues((p) => ({ ...p, [panelButton.id]: e.target.value }))
-                                    }
-                                    onKeyDown={(e) => e.key === "Enter" && !state && handleRunPanel(panelButton.panelName, panelButton)}
-                                    disabled={!!state}
-                                  />
-                                )}
-                              </div>
-                            </div>
-                            <div className="cmd-actions">
-                              {state && (
-                                <span className={`cmd-status-text ${state}`}>
-                                  {state === "running" ? "⏳ running" : state === "success" ? "✓ sent" : "✗ error"}
-                                </span>
-                              )}
-                              {!hasPresetParams && (
-                                <button
-                                  className="btn btn-green"
-                                  disabled={!!state}
-                                  onClick={() => handleRunPanel(panelButton.panelName, panelButton)}
-                                >
-                                  {state === "running" ? <><span className="spinner" style={{width:12,height:12}} />...</> : "▶ RUN"}
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                            <span style={{ fontSize: 18 }}>📋</span>
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <div className="comp-name">{name}</div>
+                              <div className="comp-count">{btns.length} button{btns.length !== 1 ? "s" : ""}</div>
+                            </span>
+                          </button>
                         );
                       })
                     )}
                   </div>
+
+                  <div className="tc-panel">
+                    <div className="panel-hdr">
+                      <div>
+                        <div className="panel-title">{selectedPanel ? selectedPanel.toUpperCase() : "SELECT A PANEL"}</div>
+                        <div className="panel-sub">
+                          {selectedPanel
+                            ? `${selectedPanelButtons.length} button${selectedPanelButtons.length !== 1 ? "s" : ""} available`
+                            : "Choose a panel from the sidebar"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="cmds-list">
+                      {panelNames.length === 0 ? (
+                        <div className="empty">
+                          <div className="empty-icon">📋</div>
+                          No panels available for this account
+                        </div>
+                      ) : !selectedPanel ? (
+                        <div className="empty">
+                          <div className="empty-icon">📋</div>
+                          Select a panel to view its buttons
+                        </div>
+                      ) : selectedPanelButtons.length === 0 ? (
+                        <div className="empty">
+                          <div className="empty-icon">🧩</div>
+                          This panel has no buttons
+                        </div>
+                      ) : (
+                        selectedPanelButtons.map((panelButton, i) => {
+                          const state = panelStates[panelButton.id];
+                          const hasPresetParams = panelButton.paramOptions.length > 0;
+                          const showTextInput = panelButton.useRegex;
+                          return (
+                            <div
+                              key={panelButton.id}
+                              className={`cmd-card ${state || ""}`}
+                              style={{ animationDelay: `${i * 8}ms` }}
+                            >
+                              <div className="cmd-body">
+                                <div className="cmd-name">{panelButton.buttonName}</div>
+                                <div className="cmd-desc">Panel button trigger</div>
+                                <div className="params-row">
+                                  {hasPresetParams && (
+                                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", width: "100%" }}>
+                                      {panelButton.paramOptions.map((opt) => {
+                                        const selectedOpt = panelDropdownValues[panelButton.id] === opt;
+                                        const optionState = panelOptionStates[panelButton.id];
+                                        const isThisOption = optionState?.option === opt;
+                                        const isRunning = isThisOption && optionState?.state === "running";
+                                        const isSuccess = isThisOption && optionState?.state === "success";
+                                        const isError = isThisOption && optionState?.state === "error";
+                                        return (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            className="btn btn-ghost"
+                                            style={{
+                                              padding: "6px 10px",
+                                              fontSize: 10,
+                                              borderColor: isRunning ? "var(--warn)" : isSuccess ? "var(--accent2)" : isError ? "var(--danger)" : selectedOpt ? "var(--accent2)" : "var(--border)",
+                                              color: isRunning ? "var(--warn)" : isSuccess ? "var(--accent2)" : isError ? "var(--danger)" : selectedOpt ? "var(--accent2)" : "var(--muted)",
+                                              background: isRunning ? "rgba(255,215,0,.1)" : isSuccess ? "rgba(0,255,157,.1)" : isError ? "rgba(255,51,102,.1)" : selectedOpt ? "rgba(0,255,157,.08)" : "transparent",
+                                            }}
+                                            disabled={!!state}
+                                            onClick={() => {
+                                              setPanelDropdownValues((p) => ({ ...p, [panelButton.id]: opt }));
+                                              handleRunPanel(panelButton.panelName, panelButton, opt, opt);
+                                            }}
+                                          >
+                                            {isRunning ? `${opt} ...` : isSuccess ? `${opt} ✓` : isError ? `${opt} ✗` : opt}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {showTextInput && (
+                                    <input
+                                      className="params-input"
+                                      placeholder={hasPresetParams ? "Or enter regex text..." : "Enter regex text..."}
+                                      value={panelParamValues[panelButton.id] || ""}
+                                      onChange={(e) =>
+                                        setPanelParamValues((p) => ({ ...p, [panelButton.id]: e.target.value }))
+                                      }
+                                      onKeyDown={(e) => e.key === "Enter" && !state && handleRunPanel(panelButton.panelName, panelButton)}
+                                      disabled={!!state}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              <div className="cmd-actions">
+                                {state && (
+                                  <span className={`cmd-status-text ${state}`}>
+                                    {state === "running" ? "⏳ running" : state === "success" ? "✓ sent" : "✗ error"}
+                                  </span>
+                                )}
+                                {!hasPresetParams && (
+                                  <button
+                                    className="btn btn-green"
+                                    disabled={!!state}
+                                    onClick={() => handleRunPanel(panelButton.panelName, panelButton)}
+                                  >
+                                    {state === "running" ? <><span className="spinner" style={{width:12,height:12}} />...</> : "▶ RUN"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+
+                {activityLogBlock}
+              </>
             )}
 
             {/* AI Chat */}
             {activeTab === "chat" && (
               (showAiSetup || !aiConfig) ? (
-                <div className="ai-setup-wrap">
+                  <div className="ai-setup-wrap">
                   <h2>🤖 CONFIGURE AI ASSISTANT</h2>
                   <p>Connect an AI model to chat with your TriggerCMD commands. The assistant can list and run commands on your behalf.</p>
                   <div className="ai-field">
@@ -1281,9 +1289,9 @@ export default function App() {
                       SAVE &amp; START CHATTING
                     </button>
                   </div>
-                </div>
-              ) : (
-                <div className="chat-wrap">
+                  </div>
+                ) : (
+                  <div className="chat-wrap">
                   <div className="chat-hdr">
                     <div>
                       <div className="chat-title">🤖 AI ASSISTANT</div>
@@ -1319,7 +1327,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-              )
+                )
             )}
           </>
         )}
