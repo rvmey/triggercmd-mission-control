@@ -42,6 +42,62 @@ async function triggerCommand(token, computer, command, params) {
   return await res.json();
 }
 
+async function fetchPanelButtons(token) {
+  const authHeaders = { "Authorization": `Bearer ${token}`, "Cache-Control": "no-cache" };
+  let res = await fetch(`${API_BASE}/api/panelbutton/list`, { headers: authHeaders });
+
+  // Some deployments only accept token query auth for panel endpoints.
+  if (!res.ok) {
+    res = await fetch(`${API_BASE}/api/panelbutton/list?token=${encodeURIComponent(token)}`, {
+      headers: { "Cache-Control": "no-cache" },
+    });
+  }
+
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return data.records || data || [];
+}
+
+async function triggerPanelButton(token, panel, button, params) {
+  const qs = new URLSearchParams({ panel, button });
+  if (params) qs.set("params", params);
+
+  let res = await fetch(`${API_BASE}/api/panel/trigger?${qs.toString()}`, {
+    headers: { "Authorization": `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const fallbackQs = new URLSearchParams({ token, panel, button });
+    if (params) fallbackQs.set("params", params);
+    res = await fetch(`${API_BASE}/api/panel/trigger?${fallbackQs.toString()}`);
+  }
+
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return await res.text();
+}
+
+function normalizePanels(records) {
+  const grouped = {};
+  records.forEach((record, idx) => {
+    const panelName = record.panel?.name || record.panelName || "Uncategorized";
+    const buttonName = record.name || record.buttonName || `Button ${idx + 1}`;
+    const useRegex = Boolean(record.useregex ?? record.useRegex);
+    const options = String(record.params || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const id = String(record.id || `${panelName}::${buttonName}::${idx}`);
+    (grouped[panelName] = grouped[panelName] || []).push({
+      id,
+      panelName,
+      buttonName,
+      useRegex,
+      paramOptions: options,
+    });
+  });
+  return grouped;
+}
+
 // ── Styles (injected once) ─────────────────────────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
@@ -323,6 +379,12 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [cmdStates, setCmdStates] = useState({}); // id -> null|'running'|'success'|'error'
   const [paramValues, setParamValues] = useState({});
+  const [panels, setPanels] = useState({});
+  const [selectedPanel, setSelectedPanel] = useState(null);
+  const [panelStates, setPanelStates] = useState({}); // id -> null|'running'|'success'|'error'
+  const [panelDropdownValues, setPanelDropdownValues] = useState({});
+  const [panelParamValues, setPanelParamValues] = useState({});
+  const [panelOptionStates, setPanelOptionStates] = useState({}); // id -> { option, state }
   const [executed, setExecuted] = useState(0);
   const [log, setLog] = useState([{ time: "--:--:--", msg: "System initialized. Awaiting commands.", type: "info" }]);
   const [toast, setToast] = useState({ msg: "", type: "info", vis: false });
@@ -330,7 +392,7 @@ export default function App() {
   const toastTimer = useRef(null);
 
   // AI Chat
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("commands");
   const [aiConfig, setAiConfig] = useState(null);
   const [aiDraft, setAiDraft] = useState({ provider: "openai", apiKey: "", model: "gpt-5.4", baseUrl: "http://localhost:11434" });
   const [showAiSetup, setShowAiSetup] = useState(false);
@@ -363,15 +425,18 @@ export default function App() {
   const autoConnect = async (tok) => {
     setPhase("loading");
     try {
-      const cmds = await fetchCommands(tok);
+      const [cmds, panelRecords] = await Promise.all([fetchCommands(tok), fetchPanelButtons(tok)]);
       const groups = {};
       cmds.forEach((c) => {
         const name = c.computer?.name || "Unknown";
         (groups[name] = groups[name] || []).push(c);
       });
+      const panelGroups = normalizePanels(panelRecords);
       setToken(tok);
       setAllCmds(cmds);
       setComputers(groups);
+      setPanels(panelGroups);
+      setSelectedPanel(Object.keys(panelGroups)[0] || null);
       setPhase("dashboard");
       setLog((l) => [{ time: timestamp(), msg: `Connected. ${Object.keys(groups).length} computers, ${cmds.length} commands.`, type: "ok" }, ...l].slice(0, 60));
     } catch {
@@ -431,16 +496,19 @@ export default function App() {
     setPhase("loading");
     const tok = tokenInput.trim();
     try {
-      const cmds = await fetchCommands(tok);
+      const [cmds, panelRecords] = await Promise.all([fetchCommands(tok), fetchPanelButtons(tok)]);
       const groups = {};
       cmds.forEach((c) => {
         const name = c.computer?.name || "Unknown";
         (groups[name] = groups[name] || []).push(c);
       });
+      const panelGroups = normalizePanels(panelRecords);
       setToken(tok);
       localStorage.setItem("tc-token", tok);
       setAllCmds(cmds);
       setComputers(groups);
+      setPanels(panelGroups);
+      setSelectedPanel(Object.keys(panelGroups)[0] || null);
       setPhase("dashboard");
       addLog(`Connected. ${Object.keys(groups).length} computers, ${cmds.length} commands.`, "ok");
       showToast("Connected successfully!", "success");
@@ -458,6 +526,9 @@ export default function App() {
 
   const setCmd = (id, state) =>
     setCmdStates((s) => ({ ...s, [id]: state }));
+
+  const setPanelState = (id, state) =>
+    setPanelStates((s) => ({ ...s, [id]: state }));
 
   const handleRun = async (computer, name, id, hasParams) => {
     const params = hasParams ? (paramValues[id] || "").trim() : undefined;
@@ -486,6 +557,57 @@ export default function App() {
       )
     : [];
 
+  const panelNames = Object.keys(panels);
+  const selectedPanelButtons = selectedPanel ? (panels[selectedPanel] || []) : [];
+
+  const handleRunPanel = async (panelName, panelButton, forcedParams, optionLabel) => {
+    const dropdownValue = panelDropdownValues[panelButton.id] || "";
+    const typedValue = panelButton.useRegex ? (panelParamValues[panelButton.id] || "").trim() : "";
+    const params = forcedParams ?? (typedValue || dropdownValue || undefined);
+    if (optionLabel) {
+      setPanelOptionStates((s) => ({ ...s, [panelButton.id]: { option: optionLabel, state: "running" } }));
+    }
+    setPanelState(panelButton.id, "running");
+    addLog(`Sending panel: [${panelName}] ${panelButton.buttonName}${params ? ` "${params}"` : ""}`, "info");
+    try {
+      await triggerPanelButton(token, panelName, panelButton.buttonName, params);
+      setPanelState(panelButton.id, "success");
+      if (optionLabel) {
+        setPanelOptionStates((s) => ({ ...s, [panelButton.id]: { option: optionLabel, state: "success" } }));
+        setTimeout(() => {
+          setPanelOptionStates((s) => {
+            const current = s[panelButton.id];
+            if (!current || current.option !== optionLabel || current.state !== "success") return s;
+            const next = { ...s };
+            delete next[panelButton.id];
+            return next;
+          });
+        }, 1300);
+      }
+      setExecuted((x) => x + 1);
+      addLog(`✓ Executed panel button: ${panelButton.buttonName} on ${panelName}`, "ok");
+      showToast(`✓ ${panelButton.buttonName} triggered!`, "success");
+      setTimeout(() => setPanelState(panelButton.id, null), 3000);
+    } catch (e) {
+      setPanelState(panelButton.id, "error");
+      if (optionLabel) {
+        setPanelOptionStates((s) => ({ ...s, [panelButton.id]: { option: optionLabel, state: "error" } }));
+        setTimeout(() => {
+          setPanelOptionStates((s) => {
+            const current = s[panelButton.id];
+            if (!current || current.option !== optionLabel || current.state !== "error") return s;
+            const next = { ...s };
+            delete next[panelButton.id];
+            return next;
+          });
+        }, 1700);
+      }
+      addLog(`✗ Panel failed: ${panelButton.buttonName} — ${e.message}`, "err");
+      showToast(`✗ Failed: ${e.message}`, "error");
+      setTimeout(() => setPanelState(panelButton.id, null), 4000);
+    }
+  };
+
   // ── AI Chat ──────────────────────────────────────────────────────────────
   const saveAiConfig = () => {
     let cfg = { ...aiDraft };
@@ -499,7 +621,7 @@ export default function App() {
     addLog(`AI configured: ${cfg.provider} / ${cfg.model}`, "info");
   };
 
-  // Keep TRIGGERcmd AI config token in sync with the active dashboard token.
+  // Keep TRIGGERcmd AI config token in sync with the active commands token.
   useEffect(() => {
     if (!token || !aiConfig || aiConfig.provider !== "triggercmd") return;
     if ((aiConfig.apiKey || "").trim() === token.trim()) return;
@@ -695,7 +817,7 @@ export default function App() {
     let conversationId = apiConvRef.current.find(m => m.conversationId)?.conversationId;
     const chatToken = token.trim();
     if (!chatToken) {
-      throw new Error("Missing active TRIGGERcmd token. Reconnect on Dashboard and try again.");
+      throw new Error("Missing active TRIGGERcmd token. Reconnect on Commands and try again.");
     }
 
     // Send message (continue existing conversation when we have an ID).
@@ -715,7 +837,7 @@ export default function App() {
     if (!resp.ok) {
       const err = await resp.text();
       if (resp.status === 401) {
-        throw new Error("TRIGGERcmd token rejected for chat API (401). Reconnect on Dashboard, then click Configure in AI Chat and save TRIGGERcmd again.");
+        throw new Error("TRIGGERcmd token rejected for chat API (401). Reconnect on Commands, then click Configure in AI Chat and save TRIGGERcmd again.");
       }
       if (resp.status === 402) {
         throw new Error("TRIGGERcmd subscription required. Please activate your subscription, then try again.");
@@ -750,6 +872,20 @@ export default function App() {
     }
   };
 
+  const activityLogBlock = (
+    <div className="tc-log">
+      <div className="log-hdr">// ACTIVITY LOG</div>
+      <div className="log-body">
+        {log.map((e, i) => (
+          <div key={i} className="log-entry">
+            <span className="log-time">{e.time}</span>
+            <span className={`log-${e.type}`}>{e.msg}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="tc-root">
       <div className="tc-inner">
@@ -768,7 +904,21 @@ export default function App() {
             <span style={{ color: "var(--border)", margin: "0 10px" }}>|</span>
             <span>{clock}</span>
             {phase === "dashboard" && (
-              <button className="disconnect-btn" onClick={() => { localStorage.removeItem("tc-token"); setPhase("setup"); setToken(""); setAllCmds([]); setComputers({}); setSelected(null); }}>
+              <button className="disconnect-btn" onClick={() => {
+                localStorage.removeItem("tc-token");
+                setPhase("setup");
+                setToken("");
+                setAllCmds([]);
+                setComputers({});
+                setSelected(null);
+                setPanels({});
+                setSelectedPanel(null);
+                setPanelStates({});
+                setPanelOptionStates({});
+                setPanelDropdownValues({});
+                setPanelParamValues({});
+                setActiveTab("commands");
+              }}>
                 DISCONNECT
               </button>
             )}
@@ -806,11 +956,12 @@ export default function App() {
           <>
             {/* Tab Nav */}
             <div className="tc-tabs">
-              <button className={`tc-tab ${activeTab === "dashboard" ? "active" : ""}`} onClick={() => setActiveTab("dashboard")}>🖥 DASHBOARD</button>
+              <button className={`tc-tab ${activeTab === "commands" ? "active" : ""}`} onClick={() => setActiveTab("commands")}>🖥 COMMANDS</button>
+              <button className={`tc-tab ${activeTab === "panels" ? "active" : ""}`} onClick={() => setActiveTab("panels")}>📋 PANELS</button>
               <button className={`tc-tab ${activeTab === "chat" ? "active" : ""}`} onClick={() => { setActiveTab("chat"); if (!aiConfig) setShowAiSetup(true); }}>🤖 AI CHAT</button>
             </div>
 
-            {activeTab === "dashboard" && (<>
+            {activeTab === "commands" && (<>
             {/* Stats */}
             <div className="tc-stats">
               <div className="stat blue">
@@ -911,7 +1062,6 @@ export default function App() {
                             )}
                           </div>
                           <div className="cmd-actions">
-                            {hasParams && <span className="badge-params">PARAMS</span>}
                             {state && (
                               <span className={`cmd-status-text ${state}`}>
                                 {state === "running" ? "⏳ running" : state === "success" ? "✓ sent" : "✗ error"}
@@ -934,23 +1084,161 @@ export default function App() {
             </div>
 
             {/* Activity log */}
-            <div className="tc-log">
-              <div className="log-hdr">// ACTIVITY LOG</div>
-              <div className="log-body">
-                {log.map((e, i) => (
-                  <div key={i} className="log-entry">
-                    <span className="log-time">{e.time}</span>
-                    <span className={`log-${e.type}`}>{e.msg}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {activityLogBlock}
             </>)}
+
+            {/* Panels */}
+            {activeTab === "panels" && (
+              <>
+                <div className="tc-grid">
+                  <div className="tc-sidebar">
+                    <div className="sidebar-lbl">// PANELS</div>
+                    {panelNames.length === 0 ? (
+                      <div className="empty" style={{ padding: "22px 8px", fontSize: 12 }}>
+                        No panels found
+                      </div>
+                    ) : (
+                      panelNames.map((name) => {
+                        const btns = panels[name] || [];
+                        return (
+                          <button
+                            key={name}
+                            className={`comp-btn ${selectedPanel === name ? "active" : ""}`}
+                            onClick={() => setSelectedPanel(name)}
+                          >
+                            <span style={{ fontSize: 18 }}>📋</span>
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <div className="comp-name">{name}</div>
+                              <div className="comp-count">{btns.length} button{btns.length !== 1 ? "s" : ""}</div>
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="tc-panel">
+                    <div className="panel-hdr">
+                      <div>
+                        <div className="panel-title">{selectedPanel ? selectedPanel.toUpperCase() : "SELECT A PANEL"}</div>
+                        <div className="panel-sub">
+                          {selectedPanel
+                            ? `${selectedPanelButtons.length} button${selectedPanelButtons.length !== 1 ? "s" : ""} available`
+                            : "Choose a panel from the sidebar"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="cmds-list">
+                      {panelNames.length === 0 ? (
+                        <div className="empty">
+                          <div className="empty-icon">📋</div>
+                          No panels available for this account
+                        </div>
+                      ) : !selectedPanel ? (
+                        <div className="empty">
+                          <div className="empty-icon">📋</div>
+                          Select a panel to view its buttons
+                        </div>
+                      ) : selectedPanelButtons.length === 0 ? (
+                        <div className="empty">
+                          <div className="empty-icon">🧩</div>
+                          This panel has no buttons
+                        </div>
+                      ) : (
+                        selectedPanelButtons.map((panelButton, i) => {
+                          const state = panelStates[panelButton.id];
+                          const hasPresetParams = panelButton.paramOptions.length > 0;
+                          const showTextInput = panelButton.useRegex;
+                          return (
+                            <div
+                              key={panelButton.id}
+                              className={`cmd-card ${state || ""}`}
+                              style={{ animationDelay: `${i * 8}ms` }}
+                            >
+                              <div className="cmd-body">
+                                <div className="cmd-name">{panelButton.buttonName}</div>
+                                <div className="cmd-desc">Panel button trigger</div>
+                                <div className="params-row">
+                                  {hasPresetParams && (
+                                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", width: "100%" }}>
+                                      {panelButton.paramOptions.map((opt) => {
+                                        const selectedOpt = panelDropdownValues[panelButton.id] === opt;
+                                        const optionState = panelOptionStates[panelButton.id];
+                                        const isThisOption = optionState?.option === opt;
+                                        const isRunning = isThisOption && optionState?.state === "running";
+                                        const isSuccess = isThisOption && optionState?.state === "success";
+                                        const isError = isThisOption && optionState?.state === "error";
+                                        return (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            className="btn btn-ghost"
+                                            style={{
+                                              padding: "6px 10px",
+                                              fontSize: 10,
+                                              borderColor: isRunning ? "var(--warn)" : isSuccess ? "var(--accent2)" : isError ? "var(--danger)" : selectedOpt ? "var(--accent2)" : "var(--border)",
+                                              color: isRunning ? "var(--warn)" : isSuccess ? "var(--accent2)" : isError ? "var(--danger)" : selectedOpt ? "var(--accent2)" : "var(--muted)",
+                                              background: isRunning ? "rgba(255,215,0,.1)" : isSuccess ? "rgba(0,255,157,.1)" : isError ? "rgba(255,51,102,.1)" : selectedOpt ? "rgba(0,255,157,.08)" : "transparent",
+                                            }}
+                                            disabled={!!state}
+                                            onClick={() => {
+                                              setPanelDropdownValues((p) => ({ ...p, [panelButton.id]: opt }));
+                                              handleRunPanel(panelButton.panelName, panelButton, opt, opt);
+                                            }}
+                                          >
+                                            {isRunning ? `${opt} ...` : isSuccess ? `${opt} ✓` : isError ? `${opt} ✗` : opt}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {showTextInput && (
+                                    <input
+                                      className="params-input"
+                                      placeholder={hasPresetParams ? "Or enter regex text..." : "Enter regex text..."}
+                                      value={panelParamValues[panelButton.id] || ""}
+                                      onChange={(e) =>
+                                        setPanelParamValues((p) => ({ ...p, [panelButton.id]: e.target.value }))
+                                      }
+                                      onKeyDown={(e) => e.key === "Enter" && !state && handleRunPanel(panelButton.panelName, panelButton)}
+                                      disabled={!!state}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              <div className="cmd-actions">
+                                {state && (
+                                  <span className={`cmd-status-text ${state}`}>
+                                    {state === "running" ? "⏳ running" : state === "success" ? "✓ sent" : "✗ error"}
+                                  </span>
+                                )}
+                                {!hasPresetParams && (
+                                  <button
+                                    className="btn btn-green"
+                                    disabled={!!state}
+                                    onClick={() => handleRunPanel(panelButton.panelName, panelButton)}
+                                  >
+                                    {state === "running" ? <><span className="spinner" style={{width:12,height:12}} />...</> : "▶ RUN"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {activityLogBlock}
+              </>
+            )}
 
             {/* AI Chat */}
             {activeTab === "chat" && (
               (showAiSetup || !aiConfig) ? (
-                <div className="ai-setup-wrap">
+                  <div className="ai-setup-wrap">
                   <h2>🤖 CONFIGURE AI ASSISTANT</h2>
                   <p>Connect an AI model to chat with your TriggerCMD commands. The assistant can list and run commands on your behalf.</p>
                   <div className="ai-field">
@@ -1001,9 +1289,9 @@ export default function App() {
                       SAVE &amp; START CHATTING
                     </button>
                   </div>
-                </div>
-              ) : (
-                <div className="chat-wrap">
+                  </div>
+                ) : (
+                  <div className="chat-wrap">
                   <div className="chat-hdr">
                     <div>
                       <div className="chat-title">🤖 AI ASSISTANT</div>
@@ -1039,7 +1327,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-              )
+                )
             )}
           </>
         )}
