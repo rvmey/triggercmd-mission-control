@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import iconUrl from "./assets/icon.png";
 import { version } from "../package.json";
+import { generateCommandString, normalizeCommandEntry, upsertCommandEntry } from "./lib/triggercmdScriptInstaller.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const esc = (s) => String(s ?? "");
@@ -318,7 +319,7 @@ const CSS = `
 `;
 
 // ── AI Constants ───────────────────────────────────────────────────────────
-const AI_DEFAULT_COMMAND_GENERATOR_PROMPT = "Add a command to backup my SD card to my NAS, including de-duplication.";
+const AI_DEFAULT_COMMAND_GENERATOR_PROMPT = "Add a command to backup my SD card to my NAS.";
 
 const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission Control.
 
@@ -329,21 +330,32 @@ Always confirm with the user before running a command unless they explicitly ask
 ## TriggerCMD execution model
 Commands registered in TriggerCMD are executed immediately and on-demand when triggered remotely — there is no scheduler or delayed execution. Scripts should always assume they will run immediately when called. Do not ask the user whether the script should "run immediately when triggered" — it always does.
 
+## commands.json field reference
+Use these rules when building a command entry:
+- trigger: A name for the trigger that will run the command via TRIGGERcmd.
+- command: The actual command line that runs the generated script.
+- ground: Must be exactly "foreground" or "background". Default to "foreground" unless "background" is requested, or if the target is a Raspberry Pi (its install instructions use background mode). Never use a path or any other value.
+- offCommand: Runs when the parameter is "off". Only include when allowParams is true and an off-action makes sense.
+- voice: The name an Alexa or Google Assistant device will use for this command. Should generally be a single word to make it easier for the voice assistant to match what the user says. For example, prefer "backup" over "backup sd".
+- voiceReply: Use {{result}} only if the script will send a result back to the server within a few seconds using ~/.TRIGGERcmdData/sendresult.sh (Linux/Mac) or %USERPROFILE%\\.TRIGGERcmdData\\SendResult.bat (Windows). Leave blank otherwise.
+- allowParams: "true" if the script accepts parameters (e.g. on/off, a color, a number 0–100). Default "false".
+- quoteParams: Default "false". Only "true" if the user needs to pass text with spaces as a single parameter.
+- mcpToolDescription: Describe what the command does and what parameters it accepts. Example: "Turns the office light on/off or changes its color. Parameters: on, off, or a color like red, blue, green."
+- icon: An icon for the command. Should be a relevant unicode emoji. For example if the script turns on/off a lightbulb we could use 💡
+
 ## Generating new scripts and commands
 When the user asks to ADD, CREATE, SET UP, BUILD, MAKE, or INSTALL a command — treat this as a script generation request, NOT a run request. Do NOT call list_commands or run_command.
 Instead follow these steps:
 1) Ask clarifying questions needed to define the script (shell/runtime, purpose, parameters).
 2) Ask where to save scripts — suggest ~/.TRIGGERcmdData/userscripts or c:\\triggercmd-scripts.
 3) Generate a complete, ready-to-save script and a matching TriggerCMD command entry.
-5) Prefer safe, idempotent scripts with sensible defaults.
-6) BEFORE calling create_triggercmd_script_command, show the user a preview:
+4) Prefer safe, idempotent scripts with sensible defaults.
+5) BEFORE calling create_triggercmd_script_command, show the user a preview:
    - Full script content
    - Exact commands.json entry (trigger, command, ground, and any optional fields)
    - File paths that would be written
    Then ask for explicit confirmation before calling the tool.
-7) If required details are missing, ask before finalizing.
-
-Note: create_triggercmd_script_command is currently in dry-run preview mode — it previews what would be written but does not write any files yet.
+6) If required details are missing, ask before finalizing.
 
 Be concise.`;
 
@@ -376,15 +388,14 @@ const AI_TOOLS_OPENAI = [
     type: "function",
     function: {
       name: "create_triggercmd_script_command",
-      description: "Preview (dry-run) writing a script file and registering a TriggerCMD command entry in commands.json. Currently returns a preview only — no files are written.",
+      description: "Write a script file to disk and register a matching TriggerCMD command entry in commands.json. Only call this after the user has confirmed the preview.",
       parameters: {
         type: "object",
-        required: ["scriptPath", "scriptContent", "scriptType", "commandsJsonPath", "commandEntry"],
+        required: ["scriptPath", "scriptContent", "scriptType", "commandEntry"],
         properties: {
           scriptPath: { type: "string", description: "Absolute path where the script file will be written" },
           scriptContent: { type: "string", description: "Full content of the script file" },
           scriptType: { type: "string", enum: ["ps1", "bat", "sh", "py", "js"], description: "Script file type/extension" },
-          commandsJsonPath: { type: "string", description: "Absolute path to the commands.json file" },
           commandEntry: {
             type: "object",
             required: ["trigger", "command", "ground"],
@@ -457,15 +468,14 @@ const AI_TOOLS_ANTHROPIC = [
   },
   {
     name: "create_triggercmd_script_command",
-    description: "Preview (dry-run) writing a script file and registering a TriggerCMD command entry in commands.json. Currently returns a preview only — no files are written.",
+    description: "Write a script file to disk and register a matching TriggerCMD command entry in commands.json. Only call this after the user has confirmed the preview.",
     input_schema: {
       type: "object",
-      required: ["scriptPath", "scriptContent", "scriptType", "commandsJsonPath", "commandEntry"],
+      required: ["scriptPath", "scriptContent", "scriptType", "commandEntry"],
       properties: {
         scriptPath: { type: "string", description: "Absolute path where the script file will be written" },
         scriptContent: { type: "string", description: "Full content of the script file" },
         scriptType: { type: "string", enum: ["ps1", "bat", "sh", "py", "js"], description: "Script file type/extension" },
-        commandsJsonPath: { type: "string", description: "Absolute path to the commands.json file" },
         commandEntry: {
           type: "object",
           required: ["trigger", "command", "ground"],
@@ -828,15 +838,30 @@ export default function App() {
       return JSON.stringify(result, null, 2);
     }
     if (name === "create_triggercmd_script_command") {
-      const { scriptPath, scriptContent, scriptType, commandsJsonPath, commandEntry } = args;
-      return JSON.stringify({
-        dryRun: true,
-        message: "DRY RUN — no files were written. This is a preview of what would be created.",
-        preview: {
-          scriptFile: { path: scriptPath, type: scriptType, content: scriptContent },
-          commandsJson: { path: commandsJsonPath, entry: commandEntry },
-        },
-      }, null, 2);
+      if (!window.electronEnv?.fileSystem || !window.electronEnv?.commandsJson) {
+        return JSON.stringify({ error: "File system access is only available in the Electron desktop app." });
+      }
+      try {
+        const { scriptPath, scriptContent, scriptType, commandEntry } = args;
+        const platform = getClientPlatform();
+
+        const scriptResult = await window.electronEnv.fileSystem.writeFile(scriptPath, scriptContent);
+
+        const normalizedEntry = normalizeCommandEntry({
+          ...commandEntry,
+          command: commandEntry.command || generateCommandString(scriptPath, scriptType, platform, commandEntry.allowParams === "true"),
+        });
+
+        const raw = await window.electronEnv.commandsJson.read();
+        const { commands, action } = upsertCommandEntry(JSON.parse(raw), normalizedEntry);
+        const jsonResult = await window.electronEnv.commandsJson.write(JSON.stringify(commands, null, 2));
+
+        addLog(`AI wrote script: ${scriptPath}`, "ok");
+        addLog(`AI ${action} command "${normalizedEntry.trigger}" in commands.json`, "ok");
+        return JSON.stringify({ success: true, scriptFile: scriptResult, commandsJson: jsonResult, action, trigger: normalizedEntry.trigger });
+      } catch (err) {
+        return JSON.stringify({ error: err.message });
+      }
     }
     if (name === "edit_commands_json") {
       if (!window.electronEnv?.commandsJson) {

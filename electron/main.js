@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -96,6 +96,17 @@ ipcMain.handle('fs:write-commands-json', (_event, content) => {
   if (existsSync(p)) copyFileSync(p, backup);
   writeFileSync(p, content, 'utf-8');
   return { written: p, backup };
+});
+
+ipcMain.handle('fs:write-file', (_event, filePath, content) => {
+  mkdirSync(dirname(filePath), { recursive: true });
+  let backup = null;
+  if (existsSync(filePath)) {
+    backup = filePath + '.bak.' + Date.now();
+    copyFileSync(filePath, backup);
+  }
+  writeFileSync(filePath, content, 'utf-8');
+  return { written: filePath, backup };
 });
 
 app.whenReady().then(() => {

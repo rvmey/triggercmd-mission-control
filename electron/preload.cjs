@@ -11,4 +11,7 @@ contextBridge.exposeInMainWorld('electronEnv', {
     read: () => ipcRenderer.invoke('fs:read-commands-json'),
     write: (content) => ipcRenderer.invoke('fs:write-commands-json', content),
   },
+  fileSystem: {
+    writeFile: (filePath, content) => ipcRenderer.invoke('fs:write-file', filePath, content),
+  },
 });

@@ -115,11 +115,11 @@ Create a tool such as `create_triggercmd_script_command`.
 - Describe new capability: generate script + register TriggerCMD command.
 - Document confirmation gate and backup behavior.
 - Include default example prompt:
-  - `Add a command to backup my SD card to my NAS, including de-duplication.`
+  - `Add a command to backup my SD card to my NAS.`
 
 ## 11) Rollout Order
 - Phase 1: prompt + tool schema + dry-run preview. ✓
-- Phase 2: real writes enabled with explicit confirmation + backup.
+- Phase 2: real writes enabled with explicit confirmation + backup. ✓
 - Phase 3: quality improvements (script templates by type, conflict resolution UX, richer metadata suggestions).
 - Phase 4: TRIGGERcmd subscription provider support (see section 12).
 
@@ -175,37 +175,31 @@ The `triggercmd` provider routes chat through the server-side `/api/v1/chat/mess
   - `scriptPath`, `scriptContent`, `scriptType`, `commandsJsonPath`, `commandEntry`.
 
 ### Tool Execution Wiring in `src/App.jsx`
-- [x] Extend `executeTool` dispatcher with `create_triggercmd_script_command` (dry-run for Phase 1).
-- [ ] Add validation and normalization helpers for:
-  - file paths
+- [x] Extend `executeTool` dispatcher with `create_triggercmd_script_command` (real writes in Phase 2).
+- [x] Add validation and normalization helpers for:
   - command entry defaults
-  - trigger collision strategy
+  - trigger collision strategy (upsert by trigger name)
 - [x] Return structured JSON results usable by chat bubbles.
 
 ### File I/O Implementation (new module)
-- [ ] Create `src/lib/triggercmdScriptInstaller.js` for pure logic.
-- [ ] Implement:
-  - `ensureDirForFile(path)`
-  - `backupIfExists(path)`
-  - `writeScriptFile(path, content)`
-  - `readCommandsJson(path)`
-  - `upsertCommandEntry(commands, entry, mode)`
-  - `writeCommandsJson(path, commands)`
-- [ ] Keep unknown metadata keys intact when updating existing entries.
+- [x] Create `src/lib/triggercmdScriptInstaller.js` for pure logic.
+- [x] Implement:
+  - `generateCommandString(scriptPath, scriptType, platform, allowParams)`
+  - `normalizeCommandEntry(entry)`
+  - `upsertCommandEntry(commands, entry)`
+- [x] Keep unknown metadata keys intact when updating existing entries (spread merge).
+- Note: directory creation and file writes go through Electron IPC in `electron/main.js`.
 
-### Command + Template Helpers (new module or section)
-- [ ] Add script template helpers by `scriptType`:
-  - `ps1`, `bat`, `sh`, `py`, `js`
-- [ ] Add command-string generator:
-  - Windows quoting for `c:\...` paths
-  - Linux/macOS quoting for POSIX paths
-  - optional param passthrough
+### Command + Template Helpers
+- [x] Add command-string generator in `src/lib/triggercmdScriptInstaller.js`:
+  - `ps1`, `bat`, `sh`, `py`, `js` with correct runner and quoting
+  - optional param passthrough (`$args`, `%*`, `"$@"`)
 
 ### Safety and Recovery
-- [ ] Backup `commands.json` before modification:
-  - `commands.json.bak.<timestamp>`
-- [ ] Add clear errors for invalid JSON and permission issues.
-- [ ] Require explicit user confirmation step before actual write.
+- [x] Backup `commands.json` before modification (`commands.json.bak.<timestamp>`) via IPC.
+- [x] Backup script file before overwrite via `fs:write-file` IPC handler.
+- [x] Add clear errors for file system failures (returned as `{ error }` JSON).
+- [x] Require explicit user confirmation step before actual write (enforced in system prompt).
 
 ### Tests
 - [ ] Add unit tests for update logic and normalization.
