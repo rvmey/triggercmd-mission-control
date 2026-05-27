@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronEnv', {
   platform: process.platform,
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+  readToken: () => ipcRenderer.invoke('fs:read-token'),
   commandsJson: {
     getInfo: () => ipcRenderer.invoke('fs:commands-json-info'),
     read: () => ipcRenderer.invoke('fs:read-commands-json'),

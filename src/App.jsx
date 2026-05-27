@@ -604,13 +604,20 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
-  // auto-connect with saved token
+  // auto-connect: prefer token.tkn from ~/.TRIGGERcmdData, fall back to localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("tc-token");
-    if (saved) {
-      setTokenInput(saved);
-      autoConnect(saved);
-    }
+    const tryConnect = async () => {
+      let tok = null;
+      if (window.electronEnv?.readToken) {
+        tok = await window.electronEnv.readToken().catch(() => null);
+      }
+      if (!tok) tok = localStorage.getItem("tc-token");
+      if (tok) {
+        setTokenInput(tok);
+        autoConnect(tok);
+      }
+    };
+    tryConnect();
   }, []);
 
   const autoConnect = async (tok) => {

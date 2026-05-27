@@ -79,6 +79,12 @@ function createWindow() {
 
 const getCommandsJsonPath = () => join(homedir(), '.TRIGGERcmdData', 'commands.json');
 
+ipcMain.handle('fs:read-token', () => {
+  const p = join(homedir(), '.TRIGGERcmdData', 'token.tkn');
+  if (!existsSync(p)) return null;
+  return readFileSync(p, 'utf-8').trim();
+});
+
 ipcMain.handle('fs:commands-json-info', () => {
   const p = getCommandsJsonPath();
   return { path: p, exists: existsSync(p) };
