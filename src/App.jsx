@@ -336,9 +336,9 @@ Use these rules when building a command entry:
 - command: The actual command line that runs the generated script.
 - ground: Must be exactly "foreground" or "background". Default to "foreground" unless "background" is requested, or if the target is a Raspberry Pi (its install instructions use background mode). Never use a path or any other value.
 - offCommand: Runs when the parameter is "off". Only include when allowParams is true and an off-action makes sense.
-- voice: The name an Alexa or Google Assistant device will use for this command. Should generally be a single word to make it easier for the voice assistant to match what the user says. For example, prefer "backup" over "backup sd".
+- voice: The name an Alexa or Google Assistant device will use for this command. Should generally be a single word to make it easier for the voice assistant to match what the user says. For example, prefer "backup" over "backup sd" unless "backup" is already used by another command (use list_commands to check).
 - voiceReply: Use {{result}} only if the script will send a result back to the server within a few seconds using ~/.TRIGGERcmdData/sendresult.sh (Linux/Mac) or %USERPROFILE%\\.TRIGGERcmdData\\SendResult.bat (Windows). Leave blank otherwise.
-- allowParams: "true" if the script accepts parameters (e.g. on/off, a color, a number 0–100). Default "false".
+- allowParams: "true" if the script accepts parameters (e.g. on/off, a color, a number from 0 to 100). Default "false".
 - quoteParams: Default "false". Only "true" if the user needs to pass text with spaces as a single parameter.
 - mcpToolDescription: Describe what the command does and what parameters it accepts. Example: "Turns the office light on/off or changes its color. Parameters: on, off, or a color like red, blue, green."
 - icon: An icon for the command. Should be a relevant unicode emoji. For example if the script turns on/off a lightbulb we could use 💡
