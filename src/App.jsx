@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import iconUrl from "./assets/icon.png";
 import { version } from "../package.json";
-import { generateCommandString, normalizeCommandEntry, upsertCommandEntry } from "./lib/triggercmdScriptInstaller.js";
+import { generateCommandString, normalizeCommandEntry, upsertCommandEntry, findExistingEntry } from "./lib/triggercmdScriptInstaller.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const esc = (s) => String(s ?? "");
@@ -324,8 +324,9 @@ const AI_DEFAULT_COMMAND_GENERATOR_PROMPT = "Add a command to backup my SD card 
 const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission Control.
 
 ## Running existing commands
-Use list_commands to see available commands, and run_command to execute them.
+Use list_commands to see commands registered in the user's TRIGGERcmd account, and run_command to execute them.
 Always confirm with the user before running a command unless they explicitly asked you to run one.
+Use list_local_commands (not list_commands) when the user asks about entries in their local commands.json file — for example to look up an existing command before editing it.
 
 ## TriggerCMD execution model
 Commands registered in TriggerCMD are executed immediately and on-demand when triggered remotely — there is no scheduler or delayed execution. Scripts should always assume they will run immediately when called. Do not ask the user whether the script should "run immediately when triggered" — it always does.
@@ -355,7 +356,8 @@ Instead follow these steps:
    - Exact commands.json entry (trigger, command, ground, and any optional fields)
    - File paths that would be written
    Then ask for explicit confirmation before calling the tool.
-6) If required details are missing, ask before finalizing.
+6) If the tool returns a conflict (a command with that trigger already exists), show the user the existing entry and ask whether to overwrite it. Only call the tool again with overwrite: true if the user explicitly confirms.
+7) If required details are missing, ask before finalizing.
 
 Be concise.`;
 
@@ -364,7 +366,15 @@ const AI_TOOLS_OPENAI = [
     type: "function",
     function: {
       name: "list_commands",
-      description: "List all available TriggerCMD commands across all computers",
+      description: "List commands registered in the user's TRIGGERcmd account across all computers. Use this to find commands to run, not to look up local commands.json entries.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_local_commands",
+      description: "Read the user's local commands.json file and return all command entries, including the full command line, script path, and all metadata fields. Use this when the user wants to view or edit an existing local command entry.",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -396,6 +406,7 @@ const AI_TOOLS_OPENAI = [
           scriptPath: { type: "string", description: "Absolute path where the script file will be written" },
           scriptContent: { type: "string", description: "Full content of the script file" },
           scriptType: { type: "string", enum: ["ps1", "bat", "sh", "py", "js"], description: "Script file type/extension" },
+          overwrite: { type: "boolean", description: "Set to true only after the user has explicitly confirmed they want to overwrite an existing command with the same trigger name." },
           commandEntry: {
             type: "object",
             required: ["trigger", "command", "ground"],
@@ -425,6 +436,7 @@ const AI_TOOLS_OPENAI = [
         type: "object",
         required: ["commandEntry"],
         properties: {
+          overwrite: { type: "boolean", description: "Set to true only after the user has explicitly confirmed they want to overwrite an existing command with the same trigger name." },
           commandEntry: {
             type: "object",
             required: ["trigger", "command", "ground"],
@@ -450,7 +462,12 @@ const AI_TOOLS_OPENAI = [
 const AI_TOOLS_ANTHROPIC = [
   {
     name: "list_commands",
-    description: "List all available TriggerCMD commands across all computers",
+    description: "List commands registered in the user's TRIGGERcmd account across all computers. Use this to find commands to run, not to look up local commands.json entries.",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "list_local_commands",
+    description: "Read the user's local commands.json file and return all command entries, including the full command line, script path, and all metadata fields. Use this when the user wants to view or edit an existing local command entry.",
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
@@ -476,6 +493,7 @@ const AI_TOOLS_ANTHROPIC = [
         scriptPath: { type: "string", description: "Absolute path where the script file will be written" },
         scriptContent: { type: "string", description: "Full content of the script file" },
         scriptType: { type: "string", enum: ["ps1", "bat", "sh", "py", "js"], description: "Script file type/extension" },
+        overwrite: { type: "boolean", description: "Set to true only after the user has explicitly confirmed they want to overwrite an existing command with the same trigger name." },
         commandEntry: {
           type: "object",
           required: ["trigger", "command", "ground"],
@@ -502,6 +520,7 @@ const AI_TOOLS_ANTHROPIC = [
       type: "object",
       required: ["commandEntry"],
       properties: {
+        overwrite: { type: "boolean", description: "Set to true only after the user has explicitly confirmed they want to overwrite an existing command with the same trigger name." },
         commandEntry: {
           type: "object",
           required: ["trigger", "command", "ground"],
@@ -844,24 +863,44 @@ export default function App() {
       setExecuted(x => x + 1);
       return JSON.stringify(result, null, 2);
     }
+    if (name === "list_local_commands") {
+      if (!window.electronEnv?.commandsJson) {
+        return JSON.stringify({ error: "File system access is only available in the Electron desktop app." });
+      }
+      try {
+        const raw = await window.electronEnv.commandsJson.read();
+        return raw;
+      } catch (err) {
+        return JSON.stringify({ error: err.message });
+      }
+    }
     if (name === "create_triggercmd_script_command") {
       if (!window.electronEnv?.fileSystem || !window.electronEnv?.commandsJson) {
         return JSON.stringify({ error: "File system access is only available in the Electron desktop app." });
       }
       try {
-        const { scriptPath, scriptContent, scriptType, commandEntry } = args;
+        const { scriptPath, scriptContent, scriptType, commandEntry, overwrite } = args;
         const platform = getClientPlatform();
 
-        const scriptResult = await window.electronEnv.fileSystem.writeFile(scriptPath, scriptContent);
+        const raw = await window.electronEnv.commandsJson.read();
+        const commands = JSON.parse(raw);
+        const existing = findExistingEntry(commands, commandEntry.trigger);
+        if (existing && !overwrite) {
+          return JSON.stringify({
+            conflict: true,
+            trigger: commandEntry.trigger,
+            existingEntry: existing,
+            message: `A command with trigger "${commandEntry.trigger}" already exists. Show the user the existing entry above and ask if they want to overwrite it. If yes, call this tool again with overwrite: true.`,
+          }, null, 2);
+        }
 
+        const scriptResult = await window.electronEnv.fileSystem.writeFile(scriptPath, scriptContent);
         const normalizedEntry = normalizeCommandEntry({
           ...commandEntry,
           command: commandEntry.command || generateCommandString(scriptPath, scriptType, platform, commandEntry.allowParams === "true"),
         });
-
-        const raw = await window.electronEnv.commandsJson.read();
-        const { commands, action } = upsertCommandEntry(JSON.parse(raw), normalizedEntry);
-        const jsonResult = await window.electronEnv.commandsJson.write(JSON.stringify(commands, null, 2));
+        const { commands: updated, action } = upsertCommandEntry(commands, normalizedEntry);
+        const jsonResult = await window.electronEnv.commandsJson.write(JSON.stringify(updated, null, 2));
 
         addLog(`AI wrote script: ${scriptPath}`, "ok");
         addLog(`AI ${action} command "${normalizedEntry.trigger}" in commands.json`, "ok");
@@ -875,17 +914,20 @@ export default function App() {
         return JSON.stringify({ error: "File system access is only available in the Electron desktop app." });
       }
       try {
+        const { commandEntry, overwrite } = args;
         const raw = await window.electronEnv.commandsJson.read();
         const commands = JSON.parse(raw);
-        const { commandEntry } = args;
-        const idx = commands.findIndex(c => c.trigger === commandEntry.trigger);
-        if (idx >= 0) {
-          commands[idx] = { ...commands[idx], ...commandEntry };
-        } else {
-          commands.push(commandEntry);
+        const existing = findExistingEntry(commands, commandEntry.trigger);
+        if (existing && !overwrite) {
+          return JSON.stringify({
+            conflict: true,
+            trigger: commandEntry.trigger,
+            existingEntry: existing,
+            message: `A command with trigger "${commandEntry.trigger}" already exists. Show the user the existing entry above and ask if they want to overwrite it. If yes, call this tool again with overwrite: true.`,
+          }, null, 2);
         }
-        const result = await window.electronEnv.commandsJson.write(JSON.stringify(commands, null, 2));
-        const action = idx >= 0 ? "updated" : "added";
+        const { commands: updated, action } = upsertCommandEntry(commands, normalizeCommandEntry(commandEntry));
+        const result = await window.electronEnv.commandsJson.write(JSON.stringify(updated, null, 2));
         addLog(`AI ${action} command "${commandEntry.trigger}" in commands.json`, "ok");
         return JSON.stringify({ success: true, action, trigger: commandEntry.trigger, ...result });
       } catch (err) {

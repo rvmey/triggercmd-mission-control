@@ -37,8 +37,14 @@ export function normalizeCommandEntry(entry) {
   };
 }
 
+export function findExistingEntry(commands, trigger) {
+  const lower = trigger?.toLowerCase();
+  return commands.find(c => c.trigger?.toLowerCase() === lower) ?? null;
+}
+
 export function upsertCommandEntry(commands, entry) {
-  const idx = commands.findIndex(c => c.trigger === entry.trigger);
+  const lower = entry.trigger?.toLowerCase();
+  const idx = commands.findIndex(c => c.trigger?.toLowerCase() === lower);
   if (idx >= 0) {
     commands[idx] = { ...commands[idx], ...entry };
     return { commands, action: "updated" };
