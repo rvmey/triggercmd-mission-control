@@ -318,7 +318,34 @@ const CSS = `
 `;
 
 // ── AI Constants ───────────────────────────────────────────────────────────
-const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission Control. You help users manage and trigger their remote commands. Use list_commands to see available commands, and run_command to execute them. Always confirm with the user before running a command unless they explicitly asked you to run one. Be concise.`;
+const AI_DEFAULT_COMMAND_GENERATOR_PROMPT = "Add a command to backup my SD card to my NAS, including de-duplication.";
+
+const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission Control.
+
+## Running existing commands
+Use list_commands to see available commands, and run_command to execute them.
+Always confirm with the user before running a command unless they explicitly asked you to run one.
+
+## TriggerCMD execution model
+Commands registered in TriggerCMD are executed immediately and on-demand when triggered remotely — there is no scheduler or delayed execution. Scripts should always assume they will run immediately when called. Do not ask the user whether the script should "run immediately when triggered" — it always does.
+
+## Generating new scripts and commands
+When the user asks to ADD, CREATE, SET UP, BUILD, MAKE, or INSTALL a command — treat this as a script generation request, NOT a run request. Do NOT call list_commands or run_command.
+Instead follow these steps:
+1) Ask clarifying questions needed to define the script (shell/runtime, purpose, parameters).
+2) Ask where to save scripts — suggest ~/.TRIGGERcmdData/userscripts or c:\\triggercmd-scripts.
+3) Generate a complete, ready-to-save script and a matching TriggerCMD command entry.
+5) Prefer safe, idempotent scripts with sensible defaults.
+6) BEFORE calling create_triggercmd_script_command, show the user a preview:
+   - Full script content
+   - Exact commands.json entry (trigger, command, ground, and any optional fields)
+   - File paths that would be written
+   Then ask for explicit confirmation before calling the tool.
+7) If required details are missing, ask before finalizing.
+
+Note: create_triggercmd_script_command is currently in dry-run preview mode — it previews what would be written but does not write any files yet.
+
+Be concise.`;
 
 const AI_TOOLS_OPENAI = [
   {
@@ -345,6 +372,68 @@ const AI_TOOLS_OPENAI = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "create_triggercmd_script_command",
+      description: "Preview (dry-run) writing a script file and registering a TriggerCMD command entry in commands.json. Currently returns a preview only — no files are written.",
+      parameters: {
+        type: "object",
+        required: ["scriptPath", "scriptContent", "scriptType", "commandsJsonPath", "commandEntry"],
+        properties: {
+          scriptPath: { type: "string", description: "Absolute path where the script file will be written" },
+          scriptContent: { type: "string", description: "Full content of the script file" },
+          scriptType: { type: "string", enum: ["ps1", "bat", "sh", "py", "js"], description: "Script file type/extension" },
+          commandsJsonPath: { type: "string", description: "Absolute path to the commands.json file" },
+          commandEntry: {
+            type: "object",
+            required: ["trigger", "command", "ground"],
+            properties: {
+              trigger: { type: "string", description: "Command trigger name used to invoke the command" },
+              command: { type: "string", description: "Full command line that executes the script" },
+              ground: { type: "string", description: "Working directory for the command" },
+              offCommand: { type: "string", description: "Command to run to stop/turn off" },
+              voice: { type: "string", description: "Voice alias for the command" },
+              voiceReply: { type: "string", description: "Voice reply spoken after execution" },
+              allowParams: { type: "string", description: "Whether to allow parameters passed at runtime (true/false)" },
+              quoteParams: { type: "string", description: "Whether to quote passed parameters (true/false)" },
+              mcpToolDescription: { type: "string", description: "Description exposed to MCP tool consumers" },
+              icon: { type: "string", description: "Icon name or URL for the command" },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "edit_commands_json",
+      description: "Add or update a command entry in the user's commands.json file at the standard TRIGGERcmd location. Backs up the file before writing. Use this after confirming the command entry with the user.",
+      parameters: {
+        type: "object",
+        required: ["commandEntry"],
+        properties: {
+          commandEntry: {
+            type: "object",
+            required: ["trigger", "command", "ground"],
+            properties: {
+              trigger: { type: "string", description: "Command trigger name used to invoke the command" },
+              command: { type: "string", description: "Full command line that executes the script" },
+              ground: { type: "string", description: "Working directory for the command" },
+              offCommand: { type: "string", description: "Command to run to stop/turn off" },
+              voice: { type: "string", description: "Voice alias for the command" },
+              voiceReply: { type: "string", description: "Voice reply spoken after execution" },
+              allowParams: { type: "string", description: "Whether to allow parameters passed at runtime (true/false)" },
+              quoteParams: { type: "string", description: "Whether to quote passed parameters (true/false)" },
+              mcpToolDescription: { type: "string", description: "Description exposed to MCP tool consumers" },
+              icon: { type: "string", description: "Icon name or URL for the command" },
+            },
+          },
+        },
+      },
+    },
+  },
 ];
 
 const AI_TOOLS_ANTHROPIC = [
@@ -366,7 +455,90 @@ const AI_TOOLS_ANTHROPIC = [
       },
     },
   },
+  {
+    name: "create_triggercmd_script_command",
+    description: "Preview (dry-run) writing a script file and registering a TriggerCMD command entry in commands.json. Currently returns a preview only — no files are written.",
+    input_schema: {
+      type: "object",
+      required: ["scriptPath", "scriptContent", "scriptType", "commandsJsonPath", "commandEntry"],
+      properties: {
+        scriptPath: { type: "string", description: "Absolute path where the script file will be written" },
+        scriptContent: { type: "string", description: "Full content of the script file" },
+        scriptType: { type: "string", enum: ["ps1", "bat", "sh", "py", "js"], description: "Script file type/extension" },
+        commandsJsonPath: { type: "string", description: "Absolute path to the commands.json file" },
+        commandEntry: {
+          type: "object",
+          required: ["trigger", "command", "ground"],
+          properties: {
+            trigger: { type: "string", description: "Command trigger name used to invoke the command" },
+            command: { type: "string", description: "Full command line that executes the script" },
+            ground: { type: "string", description: "Working directory for the command" },
+            offCommand: { type: "string", description: "Command to run to stop/turn off" },
+            voice: { type: "string", description: "Voice alias for the command" },
+            voiceReply: { type: "string", description: "Voice reply spoken after execution" },
+            allowParams: { type: "string", description: "Whether to allow parameters passed at runtime (true/false)" },
+            quoteParams: { type: "string", description: "Whether to quote passed parameters (true/false)" },
+            mcpToolDescription: { type: "string", description: "Description exposed to MCP tool consumers" },
+            icon: { type: "string", description: "Icon name or URL for the command" },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: "edit_commands_json",
+    description: "Add or update a command entry in the user's commands.json file at the standard TRIGGERcmd location. Backs up the file before writing. Use this after confirming the command entry with the user.",
+    input_schema: {
+      type: "object",
+      required: ["commandEntry"],
+      properties: {
+        commandEntry: {
+          type: "object",
+          required: ["trigger", "command", "ground"],
+          properties: {
+            trigger: { type: "string", description: "Command trigger name used to invoke the command" },
+            command: { type: "string", description: "Full command line that executes the script" },
+            ground: { type: "string", description: "Working directory for the command" },
+            offCommand: { type: "string", description: "Command to run to stop/turn off" },
+            voice: { type: "string", description: "Voice alias for the command" },
+            voiceReply: { type: "string", description: "Voice reply spoken after execution" },
+            allowParams: { type: "string", description: "Whether to allow parameters passed at runtime (true/false)" },
+            quoteParams: { type: "string", description: "Whether to quote passed parameters (true/false)" },
+            mcpToolDescription: { type: "string", description: "Description exposed to MCP tool consumers" },
+            icon: { type: "string", description: "Icon name or URL for the command" },
+          },
+        },
+      },
+    },
+  },
 ];
+
+const getClientPlatform = () => {
+  if (window.electronEnv?.platform) return window.electronEnv.platform;
+  const ua = navigator.userAgent;
+  if (ua.includes("Win")) return "win32";
+  if (ua.includes("Mac")) return "darwin";
+  if (ua.includes("Linux")) return "linux";
+  return "unknown";
+};
+
+const CLIENT_OS_LABELS = { win32: "Windows", darwin: "macOS", linux: "Linux" };
+
+const getStandardCommandsJsonPath = (platform) => {
+  if (platform === "win32") return "%USERPROFILE%\\.TRIGGERcmdData\\commands.json";
+  return "~/.TRIGGERcmdData/commands.json";
+};
+
+const buildSystemPrompt = (commandsJsonPath = null) => {
+  const platform = getClientPlatform();
+  const osLabel = CLIENT_OS_LABELS[platform] || platform;
+  const resolvedPath = commandsJsonPath || getStandardCommandsJsonPath(platform);
+  const lines = [
+    `- OS: ${osLabel}`,
+    `- commands.json: ${resolvedPath} — the edit_commands_json tool reads and writes this path automatically. Do NOT ask the user for this path.`,
+  ];
+  return `${AI_SYSTEM_PROMPT}\n\nClient context:\n${lines.join('\n')}`;
+};
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function App() {
@@ -393,11 +565,12 @@ export default function App() {
 
   // AI Chat
   const [activeTab, setActiveTab] = useState("commands");
+  const [commandsJsonPath, setCommandsJsonPath] = useState(null);
   const [aiConfig, setAiConfig] = useState(null);
   const [aiDraft, setAiDraft] = useState({ provider: "openai", apiKey: "", model: "gpt-5.4", baseUrl: "http://localhost:11434" });
   const [showAiSetup, setShowAiSetup] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([]);
-  const [chatInput, setChatInput] = useState("");
+  const [chatInput, setChatInput] = useState(AI_DEFAULT_COMMAND_GENERATOR_PROMPT);
   const [chatLoading, setChatLoading] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState("");
   const chatEndRef = useRef(null);
@@ -411,6 +584,14 @@ export default function App() {
       el.id = id; el.textContent = CSS;
       document.head.appendChild(el);
     }
+  }, []);
+
+  // detect commands.json at the standard TRIGGERcmd location
+  useEffect(() => {
+    if (!window.electronEnv?.commandsJson) return;
+    window.electronEnv.commandsJson.getInfo().then(info => {
+      if (info.exists) setCommandsJsonPath(info.path);
+    }).catch(() => {});
   }, []);
 
   // auto-connect with saved token
@@ -646,6 +827,39 @@ export default function App() {
       setExecuted(x => x + 1);
       return JSON.stringify(result, null, 2);
     }
+    if (name === "create_triggercmd_script_command") {
+      const { scriptPath, scriptContent, scriptType, commandsJsonPath, commandEntry } = args;
+      return JSON.stringify({
+        dryRun: true,
+        message: "DRY RUN — no files were written. This is a preview of what would be created.",
+        preview: {
+          scriptFile: { path: scriptPath, type: scriptType, content: scriptContent },
+          commandsJson: { path: commandsJsonPath, entry: commandEntry },
+        },
+      }, null, 2);
+    }
+    if (name === "edit_commands_json") {
+      if (!window.electronEnv?.commandsJson) {
+        return JSON.stringify({ error: "File system access is only available in the Electron desktop app." });
+      }
+      try {
+        const raw = await window.electronEnv.commandsJson.read();
+        const commands = JSON.parse(raw);
+        const { commandEntry } = args;
+        const idx = commands.findIndex(c => c.trigger === commandEntry.trigger);
+        if (idx >= 0) {
+          commands[idx] = { ...commands[idx], ...commandEntry };
+        } else {
+          commands.push(commandEntry);
+        }
+        const result = await window.electronEnv.commandsJson.write(JSON.stringify(commands, null, 2));
+        const action = idx >= 0 ? "updated" : "added";
+        addLog(`AI ${action} command "${commandEntry.trigger}" in commands.json`, "ok");
+        return JSON.stringify({ success: true, action, trigger: commandEntry.trigger, ...result });
+      } catch (err) {
+        return JSON.stringify({ error: err.message });
+      }
+    }
     return JSON.stringify({ error: "Unknown tool: " + name });
   };
 
@@ -691,7 +905,7 @@ export default function App() {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${aiConfig.provider === "ollama" ? "ollama" : aiConfig.apiKey}`,
     };
-    const msgs = [{ role: "system", content: AI_SYSTEM_PROMPT }, ...apiConvRef.current];
+    const msgs = [{ role: "system", content: buildSystemPrompt(commandsJsonPath) }, ...apiConvRef.current];
     while (true) {
       const resp = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
@@ -744,7 +958,7 @@ export default function App() {
         body: JSON.stringify({
           model: aiConfig.model,
           max_tokens: 4096,
-          system: AI_SYSTEM_PROMPT,
+          system: buildSystemPrompt(commandsJsonPath),
           messages: toAnthropicMsgs(apiConvRef.current),
           tools: AI_TOOLS_ANTHROPIC,
         }),
@@ -862,6 +1076,16 @@ export default function App() {
     setChatMsgs(prev => [...prev, { role: "user", content: text }]);
     apiConvRef.current.push({ role: "user", content: text });
     try {
+      const provider = aiConfig?.provider || "unknown";
+      const model = aiConfig?.model || "unknown";
+      addLog(`AI chat send — provider: ${provider}, model: ${model}`, "info");
+      if (provider === "triggercmd") {
+        addLog("System prompt: server-controlled (not using local AI_SYSTEM_PROMPT)", "err");
+      } else {
+        addLog(`System prompt (first 100 chars): ${buildSystemPrompt(commandsJsonPath).slice(0, 100)}…`, "info");
+      }
+      console.log("[AI Chat] provider:", provider, "model:", model);
+      console.log("[AI Chat] system prompt:", buildSystemPrompt(commandsJsonPath));
       if (aiConfig.provider === "anthropic") await runAnthropicLoop();
       else if (aiConfig.provider === "triggercmd") await runTriggercmdLoop();
       else await runOpenAILoop();
@@ -1304,7 +1528,7 @@ export default function App() {
                   </div>
                   <div className="chat-msgs">
                     {chatMsgs.length === 0 && (
-                      <div className="empty"><div className="empty-icon">🤖</div>Ask me anything about your TriggerCMD commands.</div>
+                      <div className="empty"><div className="empty-icon">🤖</div>Ask me to generate scripts, install commands, or run TriggerCMD commands.</div>
                     )}
                     {chatMsgs.map((m, i) => (
                       <div key={i} className={`chat-msg ${m.role}`}>
@@ -1321,7 +1545,7 @@ export default function App() {
                     <div ref={chatEndRef} />
                   </div>
                   <div className="chat-input-row">
-                    <textarea className="chat-textarea" placeholder="Ask the AI to list or run your commands..." value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }} disabled={chatLoading} rows={1} />
+                    <textarea className="chat-textarea" placeholder={AI_DEFAULT_COMMAND_GENERATOR_PROMPT} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }} disabled={chatLoading} rows={1} />
                     <button className="btn btn-cyan chat-send" onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()}>
                       {chatLoading ? <><span className="spinner" style={{width:12,height:12}} />...</> : "SEND"}
                     </button>

@@ -1,6 +1,8 @@
-import { app, BrowserWindow, shell, Menu } from 'electron';
+import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
+import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -74,6 +76,27 @@ function createWindow() {
     win.loadFile(join(__dirname, '../dist/index.html'));
   }
 }
+
+const getCommandsJsonPath = () => join(homedir(), '.TRIGGERcmdData', 'commands.json');
+
+ipcMain.handle('fs:commands-json-info', () => {
+  const p = getCommandsJsonPath();
+  return { path: p, exists: existsSync(p) };
+});
+
+ipcMain.handle('fs:read-commands-json', () => {
+  const p = getCommandsJsonPath();
+  if (!existsSync(p)) throw new Error('commands.json not found at ' + p);
+  return readFileSync(p, 'utf-8');
+});
+
+ipcMain.handle('fs:write-commands-json', (_event, content) => {
+  const p = getCommandsJsonPath();
+  const backup = p + '.bak.' + Date.now();
+  if (existsSync(p)) copyFileSync(p, backup);
+  writeFileSync(p, content, 'utf-8');
+  return { written: p, backup };
+});
 
 app.whenReady().then(() => {
   buildMenu();
