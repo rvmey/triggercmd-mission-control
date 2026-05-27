@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# echo "Installing build tools..."
-# apt-get update -y
-# apt-get install -y rpm curl
+echo "Installing build tools..."
+apt-get update -y
+apt-get install -y rpm curl
 
 # curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
 # chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
