@@ -326,7 +326,10 @@ const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission
 ## Running existing commands
 Use list_commands to see commands registered in the user's TRIGGERcmd account, and run_command to execute them.
 Always confirm with the user before running a command unless they explicitly asked you to run one.
-Use list_local_commands (not list_commands) when the user asks about entries in their local commands.json file — for example to look up an existing command before editing it.
+
+## Adding, editing, or looking up local commands
+Use list_local_commands (never list_commands) when the user asks to add, edit, or update a command entry.
+Commands in commands.json always run on the local computer — never ask which computer a new or edited command should run on.
 
 ## TriggerCMD execution model
 Commands registered in TriggerCMD are executed immediately and on-demand when triggered remotely — there is no scheduler or delayed execution. Scripts should always assume they will run immediately when called. Do not ask the user whether the script should "run immediately when triggered" — it always does.
@@ -682,12 +685,17 @@ export default function App() {
     } else {
       const envOpenAI = window.electronEnv?.openaiApiKey;
       const envAnthropic = window.electronEnv?.anthropicApiKey;
+      const envDeepseek = window.electronEnv?.deepseekApiKey;
       if (envOpenAI) {
         const cfg = { provider: "openai", apiKey: envOpenAI, model: "gpt-5.4" };
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       } else if (envAnthropic) {
         const cfg = { provider: "anthropic", apiKey: envAnthropic, model: "claude-opus-4-7" };
+        setAiConfig(cfg);
+        localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
+      } else if (envDeepseek) {
+        const cfg = { provider: "deepseek", apiKey: envDeepseek, model: "deepseek-chat" };
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       }
@@ -1018,6 +1026,50 @@ export default function App() {
     }
   };
 
+  const runDeepseekLoop = async () => {
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${aiConfig.apiKey}`,
+    };
+    const msgs = [{ role: "system", content: buildSystemPrompt(commandsJsonPath) }, ...apiConvRef.current];
+    while (true) {
+      const resp = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model: aiConfig.model, messages: msgs, tools: AI_TOOLS_OPENAI, tool_choice: "auto" }),
+      });
+      if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
+      const data = await resp.json();
+      const choice = data.choices?.[0];
+      if (!choice) throw new Error("No response from AI");
+      if (choice.finish_reason === "tool_calls" || choice.message?.tool_calls?.length) {
+        const aMsg = choice.message;
+        msgs.push(aMsg);
+        apiConvRef.current.push(aMsg);
+        for (const tc of aMsg.tool_calls) {
+          const args = JSON.parse(tc.function.arguments || "{}");
+          const label = `${tc.function.name}(${Object.entries(args).map(([k, v]) => `${k}: "${v}"`).join(", ")})`;
+          setChatMsgs(prev => [...prev, { role: "tool_call", content: label }]);
+          let result;
+          try {
+            result = await executeTool(tc.function.name, args);
+          } catch (err) {
+            result = JSON.stringify({ error: err.message });
+          }
+          setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
+          const tMsg = { role: "tool", tool_call_id: tc.id, content: result };
+          msgs.push(tMsg);
+          apiConvRef.current.push(tMsg);
+        }
+      } else {
+        const content = choice.message?.content || "";
+        apiConvRef.current.push({ role: "assistant", content });
+        setChatMsgs(prev => [...prev, { role: "assistant", content }]);
+        break;
+      }
+    }
+  };
+
   const runAnthropicLoop = async () => {
     const headers = {
       "Content-Type": "application/json",
@@ -1162,6 +1214,7 @@ export default function App() {
       console.log("[AI Chat] system prompt:", buildSystemPrompt(commandsJsonPath));
       if (aiConfig.provider === "anthropic") await runAnthropicLoop();
       else if (aiConfig.provider === "triggercmd") await runTriggercmdLoop();
+      else if (aiConfig.provider === "deepseek") await runDeepseekLoop();
       else await runOpenAILoop();
     } catch (e) {
       setChatMsgs(prev => [...prev, { role: "assistant", content: `⚠️ ${e.message}` }]);
@@ -1543,12 +1596,13 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd" };
+                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd", deepseek: "deepseek-chat" };
                       setAiDraft(d => ({ ...d, provider: p, model: m[p], apiKey: p === "triggercmd" ? (token || d.apiKey) : d.apiKey }));
                       setOllamaStatus("");
                     }}>
                       <option value="openai">OpenAI (gpt-5.4, etc.)</option>
                       <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="deepseek">DeepSeek</option>
                       <option value="ollama">Ollama — Local Model</option>
                       <option value="triggercmd">TRIGGERcmd Subscription</option>
                     </select>
@@ -1556,7 +1610,7 @@ export default function App() {
                   {aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd" && (
                     <div className="ai-field">
                       <label>// API KEY</label>
-                      <input className="tc-input" type="password" placeholder={`Your ${aiDraft.provider === "openai" ? "OpenAI" : "Anthropic"} API key...`} value={aiDraft.apiKey} onChange={e => setAiDraft(d => ({ ...d, apiKey: e.target.value }))} />
+                      <input className="tc-input" type="password" placeholder={`Your ${aiDraft.provider === "openai" ? "OpenAI" : aiDraft.provider === "deepseek" ? "DeepSeek" : "Anthropic"} API key...`} value={aiDraft.apiKey} onChange={e => setAiDraft(d => ({ ...d, apiKey: e.target.value }))} />
                       <p className="ai-hint">Stored locally in this app only.</p>
                     </div>
                   )}
@@ -1569,7 +1623,7 @@ export default function App() {
                   )}
                   <div className="ai-field">
                     <label>// MODEL</label>
-                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
+                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : aiDraft.provider === "deepseek" ? "deepseek-chat" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
                   </div>
                   {aiDraft.provider === "ollama" && (
                     <div style={{marginBottom:8}}>
