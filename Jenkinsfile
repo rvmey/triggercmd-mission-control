@@ -31,7 +31,6 @@ pipeline {
 
             steps {
                 sh './ubuntubuild.sh'
-                sh './scripts/publish-release-linux.sh'
             }
         }
         
