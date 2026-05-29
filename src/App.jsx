@@ -695,7 +695,7 @@ export default function App() {
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       } else if (envDeepseek) {
-        const cfg = { provider: "deepseek", apiKey: envDeepseek, model: "deepseek-chat" };
+        const cfg = { provider: "deepseek", apiKey: envDeepseek, model: "deepseek-v4-flash" };
         setAiConfig(cfg);
         localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
       }
@@ -1596,7 +1596,7 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd", deepseek: "deepseek-chat" };
+                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd", deepseek: "deepseek-v4-flash" };
                       setAiDraft(d => ({ ...d, provider: p, model: m[p], apiKey: p === "triggercmd" ? (token || d.apiKey) : d.apiKey }));
                       setOllamaStatus("");
                     }}>
@@ -1623,7 +1623,7 @@ export default function App() {
                   )}
                   <div className="ai-field">
                     <label>// MODEL</label>
-                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : aiDraft.provider === "deepseek" ? "deepseek-chat" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
+                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : aiDraft.provider === "deepseek" ? "deepseek-v4-flash" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
                   </div>
                   {aiDraft.provider === "ollama" && (
                     <div style={{marginBottom:8}}>
