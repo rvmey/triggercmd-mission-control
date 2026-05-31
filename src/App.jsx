@@ -604,6 +604,7 @@ export default function App() {
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatInput, setChatInput] = useState(AI_DEFAULT_COMMAND_GENERATOR_PROMPT);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatComputerFilter, setChatComputerFilter] = useState("");
   const [ollamaStatus, setOllamaStatus] = useState("");
   const chatEndRef = useRef(null);
   const apiConvRef = useRef([]);
@@ -1171,6 +1172,7 @@ export default function App() {
       body: JSON.stringify({
         message: userMsg,
         ...(conversationId ? { conversationId } : {}),
+        ...(chatComputerFilter ? { computerName: chatComputerFilter } : {}),
       }),
     });
 
@@ -1631,6 +1633,9 @@ export default function App() {
                       {ollamaStatus && <div className="pull-status">{ollamaStatus}</div>}
                     </div>
                   )}
+                  {aiDraft.provider === "triggercmd" && (
+                    <p className="ai-hint" style={{color:"var(--warn)"}}>NOTE: This provider will not generate scripts.</p>
+                  )}
                   <div className="ai-btns">
                     {aiConfig && <button className="btn btn-ghost" onClick={() => { setShowAiSetup(false); setOllamaStatus(""); }}>CANCEL</button>}
                     <button
@@ -1649,6 +1654,19 @@ export default function App() {
                       <div className="chat-title">🤖 AI ASSISTANT</div>
                       <div className="chat-sub">{aiConfig?.provider?.toUpperCase()} // {aiConfig?.model}</div>
                     </div>
+                    {aiConfig?.provider === "triggercmd" && Object.keys(computers).length > 0 && (
+                      <select
+                        className="ai-select"
+                        style={{width:"auto",fontSize:11,padding:"6px 10px"}}
+                        value={chatComputerFilter}
+                        onChange={e => setChatComputerFilter(e.target.value)}
+                      >
+                        <option value="">All Computers</option>
+                        {Object.keys(computers).map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    )}
                     <div style={{display:"flex",gap:8}}>
                       <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => { setChatMsgs([]); apiConvRef.current = []; }}>NEW CHAT</button>
                       <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => { setShowAiSetup(true); setAiDraft({...aiConfig}); }}>CONFIGURE</button>
