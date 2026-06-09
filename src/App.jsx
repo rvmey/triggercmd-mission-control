@@ -351,7 +351,7 @@ Use these rules when building a command entry:
 When the user asks to ADD, CREATE, SET UP, BUILD, MAKE, or INSTALL a command — treat this as a script generation request, NOT a run request. Do NOT call list_commands or run_command.
 Instead follow these steps:
 1) Ask clarifying questions needed to define the script (shell/runtime, purpose, parameters).
-2) Ask where to save scripts — suggest ~/.TRIGGERcmdData/userscripts or c:\\triggercmd-scripts.
+2) Ask where to save scripts — suggest c:\\triggercmd-scripts on Windows, or ~/triggercmd-scripts on Linux/Mac.
 3) Generate a complete, ready-to-save script and a matching TriggerCMD command entry.
 4) Prefer safe, idempotent scripts with sensible defaults.
 5) BEFORE calling create_triggercmd_script_command, show the user a preview:
