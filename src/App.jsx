@@ -337,7 +337,7 @@ Commands registered in TriggerCMD are executed immediately and on-demand when tr
 ## commands.json field reference
 Use these rules when building a command entry:
 - trigger: A name for the trigger that will run the command via TRIGGERcmd.
-- command: The actual command line that runs the generated script.
+- command: The actual command line that runs the command or generated script, without parameters. Never use {{PARAMS}}, {PARAMS}, %PARAMS%, or any other placeholder for command parameters, even if allowParams is true. The agent will append any parameters to the command line automatically when the command is run.
 - ground: Must be exactly "foreground" or "background". Default to "foreground" unless "background" is requested, or if the target is a Raspberry Pi (its install instructions use background mode). Never use a path or any other value.
 - offCommand: Runs when the parameter is "off". Only include when allowParams is true and an off-action makes sense.
 - voice: The name an Alexa or Google Assistant device will use for this command. Should generally be a single word to make it easier for the voice assistant to match what the user says. For example, prefer "backup" over "backup sd" unless "backup" is already used by another command (use list_commands to check).
