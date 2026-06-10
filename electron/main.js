@@ -7,6 +7,10 @@ import { homedir } from 'os';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
 
+// Prefer the dedicated (high-performance) GPU on hybrid-graphics systems (e.g. NVIDIA + Intel).
+// This ensures WebGPU picks the NVIDIA adapter instead of the integrated Intel GPU.
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
 function buildMenu() {
   const template = [
     // On macOS the first menu is always the app name menu; add Edit for copy/paste support
@@ -39,7 +43,17 @@ function buildMenu() {
           label: 'Get Your Token',
           click: () => shell.openExternal('https://www.triggercmd.com/user/computer/create'),
         },
-        ...(isDev ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
+        ...(isDev ? [
+          { type: 'separator' },
+          { role: 'toggleDevTools' },
+          {
+            label: 'GPU Info (chrome://gpu)',
+            click: () => {
+              const gpuWin = new BrowserWindow({ width: 1000, height: 800, title: 'GPU Info' });
+              gpuWin.loadURL('chrome://gpu');
+            },
+          },
+        ] : []),
       ],
     },
   ];
