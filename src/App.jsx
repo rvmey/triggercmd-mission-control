@@ -172,8 +172,6 @@ const CSS = `
 .btn:disabled { opacity:.5; cursor:not-allowed; transform:none !important; }
 .btn-cyan { background:var(--accent); color:var(--bg); box-shadow:0 0 15px rgba(0,212,255,.3); }
 .btn-cyan:hover:not(:disabled) { background:#33ddff; box-shadow:0 0 25px rgba(0,212,255,.6); transform:translateY(-1px); }
-.btn-stop { background:var(--danger); color:var(--bg); box-shadow:0 0 15px rgba(255,51,102,.3); }
-.btn-stop:hover { background:#ff5c85; box-shadow:0 0 25px rgba(255,51,102,.6); transform:translateY(-1px); }
 .btn-green { background:var(--accent2); color:var(--bg); box-shadow:0 0 12px rgba(0,255,157,.3); font-size:10px; padding:8px 16px; border-radius:6px; }
 .btn-green:hover:not(:disabled) { box-shadow:0 0 22px rgba(0,255,157,.6); transform:translateY(-1px); }
 .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
@@ -322,13 +320,6 @@ const CSS = `
 
 // ── AI Constants ───────────────────────────────────────────────────────────
 const AI_DEFAULT_COMMAND_GENERATOR_PROMPT = "Add a command to backup my SD card to my NAS.";
-
-const BUILTIN_MODELS = [
-  "Hermes-3-Llama-3.1-8B-q4f16_1-MLC",
-  "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC",
-  "Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC",
-  "Hermes-3-Llama-3.1-8B-q4f32_1-MLC",
-];
 
 const AI_SYSTEM_PROMPT = `You are an AI assistant embedded in TriggerCMD Mission Control.
 
@@ -617,14 +608,6 @@ export default function App() {
   const [ollamaStatus, setOllamaStatus] = useState("");
   const chatEndRef = useRef(null);
   const apiConvRef = useRef([]);
-  const chatAbortRef = useRef(null);
-  const chatGenerationRef = useRef({ stopped: false });
-  const webLlmEngineRef = useRef(null);
-  const webLlmLoadPromiseRef = useRef(null);
-  const [builtinModelLoaded, setBuiltinModelLoaded] = useState(false);
-  const [builtinLoadStatus, setBuiltinLoadStatus] = useState("");
-  const [builtinLoadProgress, setBuiltinLoadProgress] = useState(0);
-  const [gpuAvailable, setGpuAvailable] = useState(null);
 
   // inject CSS once
   useEffect(() => {
@@ -695,33 +678,11 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // GPU detection for built-in provider
-  useEffect(() => {
-    const checkGpu = async () => {
-      if (!navigator.gpu) { setGpuAvailable(false); return; }
-      try {
-        const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-        setGpuAvailable(!!adapter);
-        if (adapter) {
-          const info = adapter.info || (adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : null);
-          if (info) console.log("WebGPU adapter:", info.vendor, info.architecture, info.device, info.description);
-        }
-      } catch { setGpuAvailable(false); }
-    };
-    checkGpu();
-  }, []);
-
   // Load AI config from localStorage or env vars
   useEffect(() => {
     const saved = localStorage.getItem("tc-ai-config");
     if (saved) {
-      try {
-        const cfg = JSON.parse(saved);
-        if (cfg.provider === "builtin" && !BUILTIN_MODELS.includes(cfg.model)) {
-          cfg.model = BUILTIN_MODELS[0];
-        }
-        setAiConfig(cfg);
-      } catch {}
+      try { setAiConfig(JSON.parse(saved)); } catch {}
     } else {
       const envOpenAI = window.electronEnv?.openaiApiKey;
       const envAnthropic = window.electronEnv?.anthropicApiKey;
@@ -879,14 +840,6 @@ export default function App() {
     if (aiDraft.provider === "triggercmd") {
       cfg = { provider: "triggercmd", apiKey: token.trim(), model: "gpt-4-tcmd" };
     }
-    if (aiConfig?.provider === "builtin" || cfg.provider === "builtin") {
-      if (aiConfig?.model !== cfg.model || aiConfig?.provider !== cfg.provider) {
-        webLlmEngineRef.current = null;
-        setBuiltinModelLoaded(false);
-        setBuiltinLoadStatus("");
-        setBuiltinLoadProgress(0);
-      }
-    }
     setAiConfig(cfg);
     localStorage.setItem("tc-ai-config", JSON.stringify(cfg));
     setShowAiSetup(false);
@@ -1041,11 +994,9 @@ export default function App() {
         method: "POST",
         headers,
         body: JSON.stringify({ model: aiConfig.model, messages: msgs, tools: AI_TOOLS_OPENAI, tool_choice: "auto" }),
-        signal: chatAbortRef.current?.signal,
       });
       if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
       const data = await resp.json();
-      if (chatGenerationRef.current.stopped) return;
       const choice = data.choices?.[0];
       if (!choice) throw new Error("No response from AI");
       if (choice.finish_reason === "tool_calls" || choice.message?.tool_calls?.length) {
@@ -1066,7 +1017,6 @@ export default function App() {
           const tMsg = { role: "tool", tool_call_id: tc.id, content: result };
           msgs.push(tMsg);
           apiConvRef.current.push(tMsg);
-          if (chatGenerationRef.current.stopped) return;
         }
       } else {
         const content = choice.message?.content || "";
@@ -1088,11 +1038,9 @@ export default function App() {
         method: "POST",
         headers,
         body: JSON.stringify({ model: aiConfig.model, messages: msgs, tools: AI_TOOLS_OPENAI, tool_choice: "auto" }),
-        signal: chatAbortRef.current?.signal,
       });
       if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
       const data = await resp.json();
-      if (chatGenerationRef.current.stopped) return;
       const choice = data.choices?.[0];
       if (!choice) throw new Error("No response from AI");
       if (choice.finish_reason === "tool_calls" || choice.message?.tool_calls?.length) {
@@ -1113,7 +1061,6 @@ export default function App() {
           const tMsg = { role: "tool", tool_call_id: tc.id, content: result };
           msgs.push(tMsg);
           apiConvRef.current.push(tMsg);
-          if (chatGenerationRef.current.stopped) return;
         }
       } else {
         const content = choice.message?.content || "";
@@ -1142,11 +1089,9 @@ export default function App() {
           messages: toAnthropicMsgs(apiConvRef.current),
           tools: AI_TOOLS_ANTHROPIC,
         }),
-        signal: chatAbortRef.current?.signal,
       });
       if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`);
       const data = await resp.json();
-      if (chatGenerationRef.current.stopped) return;
       if (data.stop_reason === "tool_use") {
         const toolUses = data.content.filter(b => b.type === "tool_use");
         const aMsg = {
@@ -1166,7 +1111,6 @@ export default function App() {
           }
           setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
           apiConvRef.current.push({ role: "tool", tool_call_id: tu.id, content: result });
-          if (chatGenerationRef.current.stopped) return;
         }
       } else {
         const content = data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -1230,7 +1174,6 @@ export default function App() {
         ...(conversationId ? { conversationId } : {}),
         ...(chatComputerFilter ? { computerName: chatComputerFilter } : {}),
       }),
-      signal: chatAbortRef.current?.signal,
     });
 
     if (!resp.ok) {
@@ -1245,115 +1188,12 @@ export default function App() {
     }
 
     const data = await resp.json();
-    if (chatGenerationRef.current.stopped) return;
     conversationId = data.conversationId || conversationId;
 
     // Keep local history aligned with the already-added local user message; only append assistant reply.
     const assistantContent = data.assistantMessage?.content || "No assistant response returned.";
     apiConvRef.current.push({ role: "assistant", content: assistantContent, conversationId });
     setChatMsgs(prev => [...prev, { role: "assistant", content: assistantContent }]);
-  };
-
-  // Lazily creates/reloads the WebLLM engine. Concurrent callers share the same
-  // in-flight promise so a second reload() never aborts the first one mid-load.
-  const loadBuiltinEngine = () => {
-    if (webLlmLoadPromiseRef.current) return webLlmLoadPromiseRef.current;
-    const promise = (async () => {
-      let engine = webLlmEngineRef.current;
-      if (!engine) {
-        const { MLCEngine } = await import("@mlc-ai/web-llm");
-        engine = new MLCEngine({
-          initProgressCallback: (report) => {
-            setBuiltinLoadStatus(report.text || "Loading...");
-            setBuiltinLoadProgress(report.progress ?? 0);
-          },
-        });
-        webLlmEngineRef.current = engine;
-      }
-      setBuiltinLoadStatus("Initializing model...");
-      setBuiltinLoadProgress(0);
-      // Model downloads from the HF CDN can hit transient network errors mid-shard;
-      // completed shards stay cached, so retrying reload() resumes rather than restarting.
-      const MAX_RELOAD_ATTEMPTS = 5;
-      for (let attempt = 1; attempt <= MAX_RELOAD_ATTEMPTS; attempt++) {
-        try {
-          await engine.reload(aiConfig.model);
-          break;
-        } catch (err) {
-          const isNetworkErr = /fetch|network|Cache\.add/i.test(err?.message || "");
-          if (!isNetworkErr || attempt === MAX_RELOAD_ATTEMPTS) throw err;
-          setBuiltinLoadStatus(`Download interrupted, retrying (${attempt}/${MAX_RELOAD_ATTEMPTS})...`);
-          await new Promise(r => setTimeout(r, 2000 * attempt));
-        }
-      }
-      setBuiltinModelLoaded(true);
-      setBuiltinLoadStatus("✓ Model ready");
-      setBuiltinLoadProgress(1);
-      return engine;
-    })();
-    webLlmLoadPromiseRef.current = promise;
-    promise.finally(() => { webLlmLoadPromiseRef.current = null; });
-    return promise;
-  };
-
-  const runBuiltinLoop = async () => {
-    let engine = (webLlmEngineRef.current && builtinModelLoaded)
-      ? webLlmEngineRef.current
-      : await loadBuiltinEngine();
-    // Hermes models forbid a "system" role when tools are in use, so inject context
-    // as a fake user/assistant exchange at the start of every request.
-    const msgs = [
-      { role: "user", content: buildSystemPrompt(commandsJsonPath) },
-      { role: "assistant", content: "Understood. I'm ready to help with your TRIGGERcmd commands." },
-      ...apiConvRef.current,
-    ];
-    const complete = () => engine.chat.completions.create({
-      model: aiConfig.model,
-      messages: msgs,
-      tools: AI_TOOLS_OPENAI,
-      tool_choice: "auto",
-    });
-    while (true) {
-      let response;
-      try {
-        response = await complete();
-      } catch (err) {
-        if (err?.name === "ModelNotLoadedError") {
-          // Engine lost its loaded model (e.g. after an interrupted/aborted reload) - reload and retry once.
-          setBuiltinModelLoaded(false);
-          engine = await loadBuiltinEngine();
-          response = await complete();
-        } else {
-          throw err;
-        }
-      }
-      if (chatGenerationRef.current.stopped) return;
-      const choice = response.choices?.[0];
-      if (!choice) throw new Error("No response from built-in model");
-      if (choice.finish_reason === "tool_calls" || choice.message?.tool_calls?.length) {
-        const aMsg = choice.message;
-        msgs.push(aMsg);
-        apiConvRef.current.push(aMsg);
-        for (const tc of aMsg.tool_calls) {
-          const args = JSON.parse(tc.function.arguments || "{}");
-          const label = `${tc.function.name}(${Object.entries(args).map(([k, v]) => `${k}: "${v}"`).join(", ")})`;
-          setChatMsgs(prev => [...prev, { role: "tool_call", content: label }]);
-          let result;
-          try { result = await executeTool(tc.function.name, args); }
-          catch (err) { result = JSON.stringify({ error: err.message }); }
-          setChatMsgs(prev => [...prev, { role: "tool_result", content: result.length > 800 ? result.slice(0, 800) + "\n..." : result }]);
-          const tMsg = { role: "tool", tool_call_id: tc.id, content: result };
-          msgs.push(tMsg);
-          apiConvRef.current.push(tMsg);
-          if (chatGenerationRef.current.stopped) return;
-        }
-      } else {
-        const content = choice.message?.content || "";
-        apiConvRef.current.push({ role: "assistant", content });
-        setChatMsgs(prev => [...prev, { role: "assistant", content }]);
-        break;
-      }
-    }
   };
 
   const handleSendChat = async () => {
@@ -1363,9 +1203,6 @@ export default function App() {
     setChatLoading(true);
     setChatMsgs(prev => [...prev, { role: "user", content: text }]);
     apiConvRef.current.push({ role: "user", content: text });
-    chatAbortRef.current = new AbortController();
-    const gen = { stopped: false };
-    chatGenerationRef.current = gen;
     try {
       const provider = aiConfig?.provider || "unknown";
       const model = aiConfig?.model || "unknown";
@@ -1380,28 +1217,12 @@ export default function App() {
       if (aiConfig.provider === "anthropic") await runAnthropicLoop();
       else if (aiConfig.provider === "triggercmd") await runTriggercmdLoop();
       else if (aiConfig.provider === "deepseek") await runDeepseekLoop();
-      else if (aiConfig.provider === "builtin") await runBuiltinLoop();
       else await runOpenAILoop();
     } catch (e) {
-      if (!gen.stopped) {
-        if (e.name === "AbortError") {
-          setChatMsgs(prev => [...prev, { role: "assistant", content: "_Stopped._" }]);
-        } else {
-          setChatMsgs(prev => [...prev, { role: "assistant", content: `⚠️ ${e.message}` }]);
-        }
-      }
+      setChatMsgs(prev => [...prev, { role: "assistant", content: `⚠️ ${e.message}` }]);
     } finally {
-      if (!gen.stopped) setChatLoading(false);
-      chatAbortRef.current = null;
+      setChatLoading(false);
     }
-  };
-
-  const handleStopChat = () => {
-    chatGenerationRef.current.stopped = true;
-    chatAbortRef.current?.abort();
-    webLlmEngineRef.current?.interruptGenerate();
-    setChatMsgs(prev => [...prev, { role: "assistant", content: "_Stopped._" }]);
-    setChatLoading(false);
   };
 
   const activityLogBlock = (
@@ -1777,7 +1598,7 @@ export default function App() {
                     <label>// PROVIDER</label>
                     <select className="ai-select" value={aiDraft.provider} onChange={e => {
                       const p = e.target.value;
-                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd", deepseek: "deepseek-v4-flash", builtin: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC" };
+                      const m = { openai: "gpt-5.4", anthropic: "claude-opus-4-7", ollama: "gpt-oss:20b", triggercmd: "gpt-4-tcmd", deepseek: "deepseek-v4-flash" };
                       setAiDraft(d => ({ ...d, provider: p, model: m[p], apiKey: p === "triggercmd" ? (token || d.apiKey) : d.apiKey }));
                       setOllamaStatus("");
                     }}>
@@ -1786,7 +1607,6 @@ export default function App() {
                       <option value="deepseek">DeepSeek</option>
                       <option value="ollama">Ollama — Local Model</option>
                       <option value="triggercmd">TRIGGERcmd Subscription</option>
-                      <option value="builtin">Built-in (WebGPU — No API Key)</option>
                     </select>
                   </div>
                   {aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd" && (
@@ -1803,29 +1623,10 @@ export default function App() {
                       <p className="ai-hint">Ollama must be running locally. <a href="https://ollama.com" target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>ollama.com</a></p>
                     </div>
                   )}
-                  {aiDraft.provider === "builtin" ? (
-                    <div className="ai-field">
-                      <label>// MODEL</label>
-                      <select className="ai-select" value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))}>
-                        <option value="Hermes-3-Llama-3.1-8B-q4f16_1-MLC">Hermes-3 Llama 3.1 8B q4f16 (~4.9GB, recommended)</option>
-                        <option value="Hermes-2-Pro-Mistral-7B-q4f16_1-MLC">Hermes-2 Mistral 7B q4f16 (~4.3GB, smaller)</option>
-                        <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC">Hermes-2 Llama 3 8B q4f16 (~4.9GB)</option>
-                        <option value="Hermes-3-Llama-3.1-8B-q4f32_1-MLC">Hermes-3 Llama 3.1 8B q4f32 (~8.5GB, highest quality)</option>
-                      </select>
-                      <p className="ai-hint">Model downloads on first use (~4–9GB) and is cached locally. Requires a WebGPU-compatible GPU with sufficient VRAM.</p>
-                      {gpuAvailable === false && (
-                        <p className="ai-hint" style={{color:"var(--danger)",marginTop:6}}>⚠ No WebGPU GPU detected. This provider will not work on this device.</p>
-                      )}
-                      {gpuAvailable === true && (
-                        <p className="ai-hint" style={{color:"var(--accent2)",marginTop:6}}>✓ WebGPU GPU detected.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="ai-field">
-                      <label>// MODEL</label>
-                      <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : aiDraft.provider === "deepseek" ? "deepseek-v4-flash" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
-                    </div>
-                  )}
+                  <div className="ai-field">
+                    <label>// MODEL</label>
+                    <input className="tc-input" placeholder={aiDraft.provider === "ollama" ? "gpt-oss:20b" : aiDraft.provider === "anthropic" ? "claude-opus-4-7" : aiDraft.provider === "deepseek" ? "deepseek-v4-flash" : "gpt-5.4"} value={aiDraft.model} onChange={e => setAiDraft(d => ({ ...d, model: e.target.value }))} />
+                  </div>
                   {aiDraft.provider === "ollama" && (
                     <div style={{marginBottom:8}}>
                       <button className="btn btn-ghost" onClick={pullOllamaModel} disabled={!aiDraft.model.trim()}>⬇ PULL MODEL</button>
@@ -1839,7 +1640,7 @@ export default function App() {
                     {aiConfig && <button className="btn btn-ghost" onClick={() => { setShowAiSetup(false); setOllamaStatus(""); }}>CANCEL</button>}
                     <button
                       className="btn btn-cyan"
-                      disabled={!aiDraft.model.trim() || ((aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd" && aiDraft.provider !== "builtin") && !aiDraft.apiKey.trim()) || (aiDraft.provider === "builtin" && gpuAvailable === false)}
+                      disabled={!aiDraft.model.trim() || ((aiDraft.provider !== "ollama" && aiDraft.provider !== "triggercmd") && !aiDraft.apiKey.trim())}
                       onClick={saveAiConfig}
                     >
                       SAVE &amp; START CHATTING
@@ -1868,26 +1669,9 @@ export default function App() {
                     )}
                     <div style={{display:"flex",gap:8}}>
                       <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => { setChatMsgs([]); apiConvRef.current = []; }}>NEW CHAT</button>
-                      <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => {
-  setShowAiSetup(true);
-  const draft = { ...aiConfig };
-  if (draft.provider === "builtin" && !BUILTIN_MODELS.includes(draft.model)) {
-    draft.model = BUILTIN_MODELS[0];
-  }
-  setAiDraft(draft);
-}}>CONFIGURE</button>
+                      <button className="btn btn-ghost" style={{fontSize:10,padding:"6px 12px"}} onClick={() => { setShowAiSetup(true); setAiDraft({...aiConfig}); }}>CONFIGURE</button>
                     </div>
                   </div>
-                  {aiConfig?.provider === "builtin" && builtinLoadStatus && (
-                    <div className="pull-status" style={{margin:"0 0 8px 0"}}>
-                      <div style={{marginBottom:4}}>{builtinLoadStatus}</div>
-                      {!builtinModelLoaded && (
-                        <div style={{background:"var(--border)",borderRadius:3,height:4,overflow:"hidden"}}>
-                          <div style={{background:"var(--accent)",height:"100%",width:`${Math.round(builtinLoadProgress * 100)}%`,transition:"width 0.3s ease"}} />
-                        </div>
-                      )}
-                    </div>
-                  )}
                   <div className="chat-msgs">
                     {chatMsgs.length === 0 && (
                       <div className="empty"><div className="empty-icon">🤖</div>Ask me to generate scripts, install commands, or run TriggerCMD commands.</div>
@@ -1908,11 +1692,9 @@ export default function App() {
                   </div>
                   <div className="chat-input-row">
                     <textarea className="chat-textarea" placeholder={AI_DEFAULT_COMMAND_GENERATOR_PROMPT} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }} disabled={chatLoading} rows={1} />
-                    {chatLoading ? (
-                      <button className="btn btn-stop chat-send" onClick={handleStopChat}>STOP</button>
-                    ) : (
-                      <button className="btn btn-cyan chat-send" onClick={handleSendChat} disabled={!chatInput.trim()}>SEND</button>
-                    )}
+                    <button className="btn btn-cyan chat-send" onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()}>
+                      {chatLoading ? <><span className="spinner" style={{width:12,height:12}} />...</> : "SEND"}
+                    </button>
                   </div>
                 </div>
                 )

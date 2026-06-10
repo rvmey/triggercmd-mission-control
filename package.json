@@ -40,9 +40,7 @@
       "icon": "build/icons/icon.ico",
       "signtoolOptions": {
         "certificateSha1": "4514D960DBB0B24571B642C38CFA439B67E7C738",
-        "signingHashAlgorithms": [
-          "sha256"
-        ]
+        "signingHashAlgorithms": ["sha256"]
       }
     },
     "mac": {
@@ -61,21 +59,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         },
         {
           "target": "deb",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         },
         {
           "target": "rpm",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
       "icon": "build/icons"
@@ -88,7 +80,6 @@
     }
   },
   "dependencies": {
-    "@mlc-ai/web-llm": "^0.2.84",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
